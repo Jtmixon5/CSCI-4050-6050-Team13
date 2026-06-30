@@ -9,4 +9,7 @@ export interface Movie {
   category: string;
   synopsis: string | null;
   status: MovieStatus;
+  posterUrl?: string | null;
+  trailerUrl?: string | null;
+  mpaaRating?: string | null;
 }

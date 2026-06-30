@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "./api/client";
 import type { Movie } from "./types/Movie";
+import MovieDetails from "./components/MovieDetails";
 import "./App.css";
 
 function App() {
@@ -178,6 +179,26 @@ function App() {
     );
   }
 
+  if (selectedMovie && !selectedShowtime) {
+    return (
+      <main>
+        <button
+          onClick={() => {
+            setSelectedMovie(null);
+            setSelectedShowtime(null);
+          }}
+        >
+          Back to Movies
+        </button>
+
+        <MovieDetails
+          movie={selectedMovie}
+          onSelectShowtime={(time) => openBookingPage(selectedMovie, time)}
+        />
+      </main>
+    );
+  }
+
   return (
     <main>
       <h1>Cinema E-Booking</h1>
@@ -228,7 +249,23 @@ function App() {
 
             {currentlyRunningMovies.map((movie) => (
               <article key={movie.id}>
-                <h3>{movie.title}</h3>
+                <h3>
+                  <button
+                    onClick={() => setSelectedMovie(movie)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      margin: 0,
+                      color: "#007bff",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontSize: "inherit",
+                    }}
+                  >
+                    {movie.title}
+                  </button>
+                </h3>
                 <p>{movie.category}</p>
                 <p>{movie.synopsis}</p>
                 <p>Status: {formatStatus(movie.status)}</p>
@@ -253,7 +290,23 @@ function App() {
 
             {comingSoonMovies.map((movie) => (
               <article key={movie.id}>
-                <h3>{movie.title}</h3>
+                <h3>
+                  <button
+                    onClick={() => setSelectedMovie(movie)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      margin: 0,
+                      color: "#007bff",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontSize: "inherit",
+                    }}
+                  >
+                    {movie.title}
+                  </button>
+                </h3>
                 <p>{movie.category}</p>
                 <p>{movie.synopsis}</p>
                 <p>Status: {formatStatus(movie.status)}</p>

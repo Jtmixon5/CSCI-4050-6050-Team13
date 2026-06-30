@@ -1,8 +1,15 @@
 package com.cinema.ebooking.entity;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "movies")
@@ -76,6 +83,30 @@ public class Movie {
 
     public String getSynopsis() {
         return synopsis;
+    }
+
+    public String getCastMembers() {
+        return castMembers;
+    }
+
+    public String getDirector() {
+        return director;
+    }
+
+    public String getProducer() {
+        return producer;
+    }
+
+    public String getMpaaRating() {
+        return mpaaRating;
+    }
+
+    public String getPosterUrl() {
+        return posterUrl;
+    }
+
+    public String getTrailerUrl() {
+        return trailerUrl;
     }
 
     public MovieStatus getStatus() {
