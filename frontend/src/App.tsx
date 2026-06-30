@@ -13,22 +13,51 @@ function App() {
   const [adultTickets, setAdultTickets] = useState(1);
   const [childTickets, setChildTickets] = useState(0);
   const [seniorTickets, setSeniorTickets] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const showtimes = ["2:00 PM", "5:00 PM", "8:00 PM"];
   const seats = ["A1", "A2", "A3", "A4", "A5", "B1", "B2", "B3", "B4", "B5", "C1", "C2", "C3", "C4", "C5"];
 
-  useEffect(() => {
-    async function loadMovies() {
-      try {
-        const response = await apiClient.get<Movie[]>("/movies");
-        setMovies(response.data);
-      } catch {
-        setError("Unable to load movies.");
-      }
-    }
+  const formatStatus = (status: string) => {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  };
 
-    void loadMovies();
-  }, []);
+  useEffect(() => {
+  async function loadMovies() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+
+      if (searchTerm.trim()) {
+        params.append("title", searchTerm.trim());
+      }
+
+      if (selectedGenre) {
+        params.append("category", selectedGenre);
+      }
+
+      const queryString = params.toString();
+      const url = queryString ? `/movies?${queryString}` : "/movies";
+
+      const response = await apiClient.get<Movie[]>(url);
+      setMovies(response.data);
+    } catch {
+      setError("Unable to load movies.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  void loadMovies();
+}, [searchTerm, selectedGenre]);
 
   const openBookingPage = (movie: Movie, showtime: string) => {
     setSelectedMovie(movie);
@@ -50,7 +79,14 @@ function App() {
   if (selectedMovie && selectedShowtime) {
     return (
       <main>
-        <button onClick={() => setSelectedMovie(null)}>Back to Movies</button>
+        <button 
+          onClick={() => {
+            setSelectedMovie(null);
+            setSelectedShowtime(null);
+          }}
+        >
+          Back to Movies
+        </button>
 
         <h1>Booking Page</h1>
         <h2>{selectedMovie.title}</h2>
@@ -119,20 +155,52 @@ function App() {
     <main>
       <h1>Cinema E-Booking</h1>
 
-      {error && <p>{error}</p>}
+      <section>
+        <input
+          className="search-box"
+          type="text"
+          placeholder="Search movies by title"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+
+      <select
+        value={selectedGenre}
+        onChange={(e) => setSelectedGenre(e.target.value)}
+      >
+        <option value="">All Genres</option>
+        <option value="Action">Action</option>
+        <option value="Adventure">Adventure</option>
+        <option value="Animation">Animation</option>
+        <option value="Comedy">Comedy</option>
+        <option value="Fantasy">Fantasy</option>
+        <option value="Historical Drama">Historical Drama</option>
+        <option value="Horror">Horror</option>
+        <option value="Science Fiction">Science Fiction</option>
+      </select>
+
+      <input
+        type="date"
+        disabled
+        title="Show date filtering will be implemented in a later sprint."
+      />
+    </section>
 
       <section>
         <h2>Movies</h2>
+        {loading && <p>Loading movies...</p>}
 
-        {movies.length === 0 ? (
-          <p>No movies are currently available.</p>
-        ) : (
-          movies.map((movie) => (
+        {error && <p>{error}</p>}
+
+        {!loading && !error && movies.length === 0 && (
+          <p>No movies match your search or filter.</p>
+        )}
+        {!loading && !error && movies.map((movie) => (
             <article key={movie.id}>
               <h3>{movie.title}</h3>
               <p>{movie.category}</p>
               <p>{movie.synopsis}</p>
-              <p>Status: {movie.status}</p>
+              <p>Status: {formatStatus(movie.status)}</p>
 
               <h4>Showtimes</h4>
               {showtimes.map((time) => (
@@ -142,7 +210,7 @@ function App() {
               ))}
             </article>
           ))
-        )}
+        }
       </section>
     </main>
   );

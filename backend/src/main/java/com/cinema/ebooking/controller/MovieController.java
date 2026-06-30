@@ -20,15 +20,21 @@ public class MovieController {
     }
 
     @GetMapping
-    public List<Movie> getAllMovies() {
-        return movieService.getAllMovies();
+    public List<Movie> getMovies(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String category
+    ) {
+        return movieService.searchMovies(title, category);
+    }
+
+    @GetMapping("/{id}")
+    public Movie getMovieById(@PathVariable Long id) {
+        return movieService.getMovieById(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Movie createMovie(
-            @Valid @RequestBody CreateMovieRequest request
-    ) {
+    public Movie createMovie(@Valid @RequestBody CreateMovieRequest request) {
         return movieService.createMovie(request);
     }
 }
