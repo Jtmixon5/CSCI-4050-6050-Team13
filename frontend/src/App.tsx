@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { apiClient } from "./api/client";
 import type { Movie } from "./types/Movie";
 import MovieDetails from "./components/MovieDetails";
+import FavoriteButton from "./components/FavoriteButton";
+import { addFavorite } from "./api/favorites";
 import "./App.css";
 
 function App() {
@@ -10,7 +12,7 @@ function App() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedShowtime, setSelectedShowtime] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-
+  const [favoriteIds,setFavoriteIds]=useState<number[]>([]);
   const [adultTickets, setAdultTickets] = useState(1);
   const [childTickets, setChildTickets] = useState(0);
   const [seniorTickets, setSeniorTickets] = useState(0);
@@ -249,23 +251,40 @@ function App() {
 
             {currentlyRunningMovies.map((movie) => (
               <article key={movie.id}>
-                <h3>
-                  <button
-                    onClick={() => setSelectedMovie(movie)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      margin: 0,
-                      color: "#007bff",
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontSize: "inherit",
-                    }}
-                  >
-                    {movie.title}
-                  </button>
-                </h3>
+    <h3
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  }}
+>
+  <button
+    onClick={() => setSelectedMovie(movie)}
+    style={{
+      background: "none",
+      border: "none",
+      padding: 0,
+      margin: 0,
+      color: "#007bff",
+      textDecoration: "underline",
+      cursor: "pointer",
+      fontSize: "inherit",
+    }}
+  >
+    {movie.title}
+  </button>
+
+  <FavoriteButton
+    isFavorite={favoriteIds.includes(movie.id)}
+    onClick={async () => {
+      await addFavorite(movie.id);
+
+      setFavoriteIds((ids) =>
+        ids.includes(movie.id) ? ids : [...ids, movie.id]
+      );
+    }}
+  />
+</h3>
                 <p>{movie.category}</p>
                 <p>{movie.synopsis}</p>
                 <p>Status: {formatStatus(movie.status)}</p>
@@ -290,23 +309,40 @@ function App() {
 
             {comingSoonMovies.map((movie) => (
               <article key={movie.id}>
-                <h3>
-                  <button
-                    onClick={() => setSelectedMovie(movie)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      margin: 0,
-                      color: "#007bff",
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontSize: "inherit",
-                    }}
-                  >
-                    {movie.title}
-                  </button>
-                </h3>
+                <h3
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  }}
+>
+  <button
+    onClick={() => setSelectedMovie(movie)}
+    style={{
+      background: "none",
+      border: "none",
+      padding: 0,
+      margin: 0,
+      color: "#007bff",
+      textDecoration: "underline",
+      cursor: "pointer",
+      fontSize: "inherit",
+    }}
+  >
+    {movie.title}
+  </button>
+
+  <FavoriteButton
+    isFavorite={favoriteIds.includes(movie.id)}
+    onClick={async () => {
+      await addFavorite(movie.id);
+
+      setFavoriteIds((ids) =>
+        ids.includes(movie.id) ? ids : [...ids, movie.id]
+      );
+    }}
+  />
+</h3>
                 <p>{movie.category}</p>
                 <p>{movie.synopsis}</p>
                 <p>Status: {formatStatus(movie.status)}</p>
