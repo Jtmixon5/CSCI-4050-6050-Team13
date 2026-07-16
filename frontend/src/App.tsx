@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "./api/client";
+import {
+  addFavorite,
+  getFavorites,
+  removeFavorite,
+} from "./api/favorites";
 import type { Movie } from "./types/Movie";
 import MovieDetails from "./components/MovieDetails";
 import FavoriteButton from "./components/FavoriteButton";
-import { addFavorite } from "./api/favorites";
 import "./App.css";
 
 function App() {
@@ -12,10 +16,15 @@ function App() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedShowtime, setSelectedShowtime] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  const [favoriteIds,setFavoriteIds]=useState<number[]>([]);
+
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+  const [favoriteLoadingIds, setFavoriteLoadingIds] = useState<number[]>([]);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+
   const [adultTickets, setAdultTickets] = useState(1);
   const [childTickets, setChildTickets] = useState(0);
   const [seniorTickets, setSeniorTickets] = useState(0);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,6 +88,24 @@ function App() {
     void loadMovies();
   }, [searchTerm, selectedGenre]);
 
+  useEffect(() => {
+    async function loadFavorites() {
+      try {
+        setFavoriteError(null);
+
+        const favorites = await getFavorites();
+
+        setFavoriteIds(
+          favorites.map((movie) => movie.id)
+        );
+      } catch {
+        setFavoriteError("Unable to load your favorite movies.");
+      }
+    }
+
+    void loadFavorites();
+  }, []);
+
   const openBookingPage = (movie: Movie, showtime: string) => {
     setSelectedMovie(movie);
     setSelectedShowtime(showtime);
@@ -88,13 +115,54 @@ function App() {
   const toggleSeat = (seat: string) => {
     setSelectedSeats((currentSeats) =>
       currentSeats.includes(seat)
-        ? currentSeats.filter((s) => s !== seat)
+        ? currentSeats.filter((currentSeat) => currentSeat !== seat)
         : [...currentSeats, seat]
     );
   };
 
+  const toggleFavorite = async (movieId: number) => {
+    if (favoriteLoadingIds.includes(movieId)) {
+      return;
+    }
+
+    const wasFavorite = favoriteIds.includes(movieId);
+
+    setFavoriteLoadingIds((ids) => [...ids, movieId]);
+    setFavoriteError(null);
+
+    try {
+      if (wasFavorite) {
+        await removeFavorite(movieId);
+
+        setFavoriteIds((ids) =>
+          ids.filter((id) => id !== movieId)
+        );
+      } else {
+        await addFavorite(movieId);
+
+        setFavoriteIds((ids) =>
+          ids.includes(movieId)
+            ? ids
+            : [...ids, movieId]
+        );
+      }
+    } catch {
+      setFavoriteError(
+        wasFavorite
+          ? "Unable to remove the movie from favorites."
+          : "Unable to add the movie to favorites."
+      );
+    } finally {
+      setFavoriteLoadingIds((ids) =>
+        ids.filter((id) => id !== movieId)
+      );
+    }
+  };
+
   const total =
-    adultTickets * 14.99 + childTickets * 9.99 + seniorTickets * 11.99;
+    adultTickets * 14.99 +
+    childTickets * 9.99 +
+    seniorTickets * 11.99;
 
   const currentlyRunningMovies = movies.filter(
     (movie) => movie.status === "CURRENTLY_PLAYING"
@@ -108,6 +176,7 @@ function App() {
     return (
       <main>
         <button
+          type="button"
           onClick={() => {
             setSelectedMovie(null);
             setSelectedShowtime(null);
@@ -129,7 +198,9 @@ function App() {
               type="number"
               min="0"
               value={adultTickets}
-              onChange={(e) => setAdultTickets(Number(e.target.value))}
+              onChange={(event) =>
+                setAdultTickets(Number(event.target.value))
+              }
             />
           </label>
 
@@ -139,7 +210,9 @@ function App() {
               type="number"
               min="0"
               value={childTickets}
-              onChange={(e) => setChildTickets(Number(e.target.value))}
+              onChange={(event) =>
+                setChildTickets(Number(event.target.value))
+              }
             />
           </label>
 
@@ -149,21 +222,27 @@ function App() {
               type="number"
               min="0"
               value={seniorTickets}
-              onChange={(e) => setSeniorTickets(Number(e.target.value))}
+              onChange={(event) =>
+                setSeniorTickets(Number(event.target.value))
+              }
             />
           </label>
         </section>
 
         <section>
           <h3>Select Seats</h3>
+
           <div className="screen">SCREEN</div>
 
           <div className="seat-grid">
             {seats.map((seat) => (
               <button
+                type="button"
                 key={seat}
                 className={
-                  selectedSeats.includes(seat) ? "seat selected" : "seat"
+                  selectedSeats.includes(seat)
+                    ? "seat selected"
+                    : "seat"
                 }
                 onClick={() => toggleSeat(seat)}
               >
@@ -172,11 +251,15 @@ function App() {
             ))}
           </div>
 
-          <p>Selected Seats: {selectedSeats.join(", ") || "None"}</p>
+          <p>
+            Selected Seats:{" "}
+            {selectedSeats.join(", ") || "None"}
+          </p>
         </section>
 
         <h3>Total: ${total.toFixed(2)}</h3>
-        <button>Continue</button>
+
+        <button type="button">Continue</button>
       </main>
     );
   }
@@ -185,6 +268,7 @@ function App() {
     return (
       <main>
         <button
+          type="button"
           onClick={() => {
             setSelectedMovie(null);
             setSelectedShowtime(null);
@@ -195,7 +279,9 @@ function App() {
 
         <MovieDetails
           movie={selectedMovie}
-          onSelectShowtime={(time) => openBookingPage(selectedMovie, time)}
+          onSelectShowtime={(time) =>
+            openBookingPage(selectedMovie, time)
+          }
         />
       </main>
     );
@@ -211,12 +297,16 @@ function App() {
           type="text"
           placeholder="Search movies by title"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(event) =>
+            setSearchTerm(event.target.value)
+          }
         />
 
         <select
           value={selectedGenre}
-          onChange={(e) => setSelectedGenre(e.target.value)}
+          onChange={(event) =>
+            setSelectedGenre(event.target.value)
+          }
         >
           <option value="">All Genres</option>
           <option value="Action">Action</option>
@@ -239,117 +329,123 @@ function App() {
       <section>
         {loading && <p>Loading movies...</p>}
 
-        {error && <p>{error}</p>}
+        {error && <p role="alert">{error}</p>}
+
+        {favoriteError && (
+          <p role="alert">{favoriteError}</p>
+        )}
 
         {!loading && !error && movies.length === 0 && (
           <p>No movies match your search or filter.</p>
         )}
 
-        {!loading && !error && currentlyRunningMovies.length > 0 && (
-          <section>
-            <h2>Currently Running</h2>
+        {!loading &&
+          !error &&
+          currentlyRunningMovies.length > 0 && (
+            <section>
+              <h2>Currently Running</h2>
 
-            {currentlyRunningMovies.map((movie) => (
-              <article key={movie.id}>
-    <h3
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  }}
->
-  <button
-    onClick={() => setSelectedMovie(movie)}
-    style={{
-      background: "none",
-      border: "none",
-      padding: 0,
-      margin: 0,
-      color: "#007bff",
-      textDecoration: "underline",
-      cursor: "pointer",
-      fontSize: "inherit",
-    }}
-  >
-    {movie.title}
-  </button>
-
-  <FavoriteButton
-    isFavorite={favoriteIds.includes(movie.id)}
-    onClick={async () => {
-      await addFavorite(movie.id);
-
-      setFavoriteIds((ids) =>
-        ids.includes(movie.id) ? ids : [...ids, movie.id]
-      );
-    }}
-  />
-</h3>
-                <p>{movie.category}</p>
-                <p>{movie.synopsis}</p>
-                <p>Status: {formatStatus(movie.status)}</p>
-
-                <h4>Showtimes</h4>
-                {showtimes.map((time) => (
-                  <button
-                    key={time}
-                    onClick={() => openBookingPage(movie, time)}
+              {currentlyRunningMovies.map((movie) => (
+                <article key={movie.id}>
+                  <h3
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
                   >
-                    {time}
-                  </button>
-                ))}
-              </article>
-            ))}
-          </section>
-        )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMovie(movie)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        margin: 0,
+                        color: "#007bff",
+                        textDecoration: "underline",
+                        cursor: "pointer",
+                        fontSize: "inherit",
+                      }}
+                    >
+                      {movie.title}
+                    </button>
 
-        {!loading && !error && comingSoonMovies.length > 0 && (
-          <section>
-            <h2>Coming Soon</h2>
+                    <FavoriteButton
+                      isFavorite={favoriteIds.includes(movie.id)}
+                      disabled={favoriteLoadingIds.includes(movie.id)}
+                      onClick={() => toggleFavorite(movie.id)}
+                    />
+                  </h3>
 
-            {comingSoonMovies.map((movie) => (
-              <article key={movie.id}>
-                <h3
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  }}
->
-  <button
-    onClick={() => setSelectedMovie(movie)}
-    style={{
-      background: "none",
-      border: "none",
-      padding: 0,
-      margin: 0,
-      color: "#007bff",
-      textDecoration: "underline",
-      cursor: "pointer",
-      fontSize: "inherit",
-    }}
-  >
-    {movie.title}
-  </button>
+                  <p>{movie.category}</p>
+                  <p>{movie.synopsis}</p>
+                  <p>Status: {formatStatus(movie.status)}</p>
 
-  <FavoriteButton
-    isFavorite={favoriteIds.includes(movie.id)}
-    onClick={async () => {
-      await addFavorite(movie.id);
+                  <h4>Showtimes</h4>
 
-      setFavoriteIds((ids) =>
-        ids.includes(movie.id) ? ids : [...ids, movie.id]
-      );
-    }}
-  />
-</h3>
-                <p>{movie.category}</p>
-                <p>{movie.synopsis}</p>
-                <p>Status: {formatStatus(movie.status)}</p>
-              </article>
-            ))}
-          </section>
-        )}
+                  {showtimes.map((time) => (
+                    <button
+                      type="button"
+                      key={time}
+                      onClick={() =>
+                        openBookingPage(movie, time)
+                      }
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </article>
+              ))}
+            </section>
+          )}
+
+        {!loading &&
+          !error &&
+          comingSoonMovies.length > 0 && (
+            <section>
+              <h2>Coming Soon</h2>
+
+              {comingSoonMovies.map((movie) => (
+                <article key={movie.id}>
+                  <h3
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMovie(movie)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        margin: 0,
+                        color: "#007bff",
+                        textDecoration: "underline",
+                        cursor: "pointer",
+                        fontSize: "inherit",
+                      }}
+                    >
+                      {movie.title}
+                    </button>
+
+                    <FavoriteButton
+                      isFavorite={favoriteIds.includes(movie.id)}
+                      disabled={favoriteLoadingIds.includes(movie.id)}
+                      onClick={() => toggleFavorite(movie.id)}
+                    />
+                  </h3>
+
+                  <p>{movie.category}</p>
+                  <p>{movie.synopsis}</p>
+                  <p>Status: {formatStatus(movie.status)}</p>
+                </article>
+              ))}
+            </section>
+          )}
       </section>
     </main>
   );
