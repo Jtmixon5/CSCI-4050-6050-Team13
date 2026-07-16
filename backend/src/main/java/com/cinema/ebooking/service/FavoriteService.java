@@ -1,6 +1,7 @@
 package com.cinema.ebooking.service;
 
 import com.cinema.ebooking.entity.Favorite;
+import com.cinema.ebooking.entity.FavoriteId;
 import com.cinema.ebooking.entity.Movie;
 import com.cinema.ebooking.entity.User;
 import com.cinema.ebooking.repository.FavoriteRepository;
@@ -34,7 +35,8 @@ public class FavoriteService {
     public List<Movie> getFavorites(Long userId) {
         requireUser(userId);
 
-        return favoriteRepository.findAllByUserIdOrderByIdDesc(userId)
+        return favoriteRepository
+            .findAllByUser_IdOrderByCreatedAtDesc(userId)
             .stream()
             .map(Favorite::getMovie)
             .toList();
@@ -45,40 +47,57 @@ public class FavoriteService {
         User user = requireUser(userId);
         Movie movie = requireMovie(movieId);
 
-        if (!favoriteRepository.existsByUserIdAndMovieId(userId, movieId)) {
-            favoriteRepository.save(new Favorite(user, movie));
+        FavoriteId favoriteId =
+            new FavoriteId(userId, movieId);
+
+        if (!favoriteRepository.existsById(favoriteId)) {
+            favoriteRepository.save(
+                new Favorite(user, movie)
+            );
         }
 
         return movie;
     }
 
     @Transactional
-    public void removeFavorite(Long userId, Long movieId) {
+    public void removeFavorite(
+        Long userId,
+        Long movieId
+    ) {
         requireUser(userId);
 
-        Favorite favorite = favoriteRepository
-            .findByUserIdAndMovieId(userId, movieId)
-            .orElseThrow(() -> new ResponseStatusException(
+        FavoriteId favoriteId =
+            new FavoriteId(userId, movieId);
+
+        if (!favoriteRepository.existsById(favoriteId)) {
+            throw new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "Favorite not found"
-            ));
+            );
+        }
 
-        favoriteRepository.delete(favorite);
+        favoriteRepository.deleteById(favoriteId);
     }
 
     private User requireUser(Long userId) {
-        return userRepository.findById(userId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "User not found"
-            ));
+        return userRepository
+            .findById(userId)
+            .orElseThrow(() ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "User not found"
+                )
+            );
     }
 
     private Movie requireMovie(Long movieId) {
-        return movieRepository.findById(movieId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Movie not found"
-            ));
+        return movieRepository
+            .findById(movieId)
+            .orElseThrow(() ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Movie not found"
+                )
+            );
     }
 }
