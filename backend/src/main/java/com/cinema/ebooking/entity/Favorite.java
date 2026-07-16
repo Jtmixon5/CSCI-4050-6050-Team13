@@ -1,38 +1,39 @@
 package com.cinema.ebooking.entity;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+
+import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "favorites",
-    uniqueConstraints = {
-        @UniqueConstraint(
-            name = "uk_favorites_user_movie",
-            columnNames = {"user_id", "movie_id"}
-        )
-    }
-)
+@Table(name = "favorite_movies")
 public class Favorite {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @EmbeddedId
+    private FavoriteId id;
 
+    @MapsId("userId")
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @MapsId("movieId")
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "movie_id", nullable = false)
     private Movie movie;
+
+    @Column(
+        name = "created_at",
+        insertable = false,
+        updatable = false
+    )
+    private LocalDateTime createdAt;
 
     protected Favorite() {
     }
@@ -40,9 +41,13 @@ public class Favorite {
     public Favorite(User user, Movie movie) {
         this.user = user;
         this.movie = movie;
+        this.id = new FavoriteId(
+            user.getId(),
+            movie.getId()
+        );
     }
 
-    public Long getId() {
+    public FavoriteId getId() {
         return id;
     }
 
@@ -52,5 +57,9 @@ public class Favorite {
 
     public Movie getMovie() {
         return movie;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }
