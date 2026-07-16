@@ -2,100 +2,243 @@ import React from "react";
 import type { Movie } from "../types/Movie";
 
 interface MovieDetailsProps {
-  movie: Movie & {
-    posterUrl?: string;
-    rating?: string | number;
-    trailerUrl?: string;
-  };
+  movie: Movie;
   onSelectShowtime?: (showtime: string) => void;
 }
 
 const showtimes = ["2:00 PM", "5:00 PM", "8:00 PM"];
 
-export const MovieDetails: React.FC<MovieDetailsProps> = ({ movie, onSelectShowtime }) => {
-  const { title, synopsis, posterUrl, trailerUrl } = movie as any;
-  const rating = (movie as any).mpaaRating ?? (movie as any).rating;
+const toYoutubeEmbed = (url: string): string => {
+  try {
+    const parsedUrl = new URL(url);
 
-  // No external fallback links provided; trailers are embedded when available.
+    if (parsedUrl.hostname.includes("youtu.be")) {
+      const videoId = parsedUrl.pathname.replace("/", "");
 
-  const toYoutubeEmbed = (url: string) => {
-    try {
-      const u = new URL(url);
-      if (u.hostname.includes("youtu.be")) {
-        return `https://www.youtube.com/embed${u.pathname}`;
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}`;
       }
-      if (u.hostname.includes("youtube.com")) {
-        const v = u.searchParams.get("v");
-        if (v) return `https://www.youtube.com/embed/${v}`;
-      }
-    } catch (e) {
-      // ignore and fall through
     }
-    return url;
+
+    if (parsedUrl.hostname.includes("youtube.com")) {
+      const videoId = parsedUrl.searchParams.get("v");
+
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}`;
+      }
+
+      if (parsedUrl.pathname.startsWith("/embed/")) {
+        return url;
+      }
+    }
+  } catch {
+    // Return the original URL when it cannot be parsed.
+  }
+
+  return url;
+};
+
+const isYoutubeUrl = (url: string): boolean => {
+  return url.includes("youtube.com") || url.includes("youtu.be");
+};
+
+const isVideoFile = (url: string): boolean => {
+  return url.toLowerCase().endsWith(".mp4");
+};
+
+export const MovieDetails: React.FC<MovieDetailsProps> = ({
+  movie,
+  onSelectShowtime,
+}) => {
+  const {
+    title,
+    synopsis,
+    posterUrl,
+    trailerUrl,
+    mpaaRating,
+    category,
+    status,
+  } = movie;
+
+  const formattedStatus = status
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  const selectShowtime = (showtime: string) => {
+    if (onSelectShowtime) {
+      onSelectShowtime(showtime);
+      return;
+    }
+
+    window.alert(`Selected showtime: ${showtime}`);
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: "24px auto", fontFamily: "Arial, sans-serif" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div
+      style={{
+        maxWidth: 900,
+        margin: "24px auto",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
         <img
-          src={posterUrl || "/public/placeholder-poster.png"}
+          src={posterUrl || "/placeholder-poster.png"}
           alt={`${title} poster`}
-          style={{ width: 260, height: 380, objectFit: "cover", borderRadius: 6, margin: "0 auto" }}
+          onError={(event) => {
+            event.currentTarget.src = "/placeholder-poster.png";
+          }}
+          style={{
+            width: 260,
+            height: 380,
+            objectFit: "cover",
+            borderRadius: 6,
+            margin: "0 auto",
+          }}
         />
 
-        <div style={{ flex: 1, textAlign: "left" }}>
+        <div
+          style={{
+            flex: 1,
+            textAlign: "left",
+          }}
+        >
           <h2 style={{ margin: "8px 0" }}>{title}</h2>
-          {rating !== undefined && (
-            <p style={{ margin: "0 0 12px", fontWeight: 600 }}>Rating: {rating}</p>
+
+          <p style={{ margin: "0 0 8px" }}>
+            <strong>Genre:</strong> {category}
+          </p>
+
+          <p style={{ margin: "0 0 8px" }}>
+            <strong>Status:</strong> {formattedStatus}
+          </p>
+
+          {mpaaRating && (
+            <p style={{ margin: "0 0 12px" }}>
+              <strong>Rating:</strong> {mpaaRating}
+            </p>
           )}
 
-          <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Description</h3>
-          <p style={{ marginTop: 0 }}>{synopsis || "No description available."}</p>
+          <h3
+            style={{
+              margin: "16px 0 8px",
+              fontSize: 16,
+            }}
+          >
+            Description
+          </h3>
 
-          <h3 style={{ marginTop: 12, marginBottom: 8, fontSize: 16 }}>Showtimes</h3>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {showtimes.map((t) => (
-              <button
-                key={t}
-                onClick={() =>
-                  onSelectShowtime ? onSelectShowtime(t) : alert(`Selected showtime: ${t}`)
-                }
+          <p style={{ marginTop: 0 }}>
+            {synopsis || "No description is currently available."}
+          </p>
+
+          {status === "CURRENTLY_PLAYING" && (
+            <>
+              <h3
+                style={{
+                  marginTop: 12,
+                  marginBottom: 8,
+                  fontSize: 16,
+                }}
               >
-                {t}
-              </button>
-            ))}
-          </div>
+                Showtimes
+              </h3>
 
-          <div style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                {showtimes.map((showtime) => (
+                  <button
+                    key={showtime}
+                    type="button"
+                    onClick={() => selectShowtime(showtime)}
+                  >
+                    {showtime}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <div style={{ marginTop: 20 }}>
+            <h3
+              style={{
+                marginBottom: 8,
+                fontSize: 16,
+              }}
+            >
+              Trailer
+            </h3>
+
             {trailerUrl ? (
-              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: 8 }}>
-                {trailerUrl.includes("youtube.com") || trailerUrl.includes("youtu.be") ? (
+              <div
+                style={{
+                  position: "relative",
+                  paddingBottom: "56.25%",
+                  height: 0,
+                  overflow: "hidden",
+                  borderRadius: 8,
+                }}
+              >
+                {isYoutubeUrl(trailerUrl) ? (
                   <iframe
                     src={toYoutubeEmbed(trailerUrl)}
-                    frameBorder="0"
+                    title={`${title} trailer`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
-                    title={`${title} trailer`}
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                      border: 0,
+                    }}
                   />
-                ) : trailerUrl.endsWith(".mp4") ? (
+                ) : isVideoFile(trailerUrl) ? (
                   <video
                     src={trailerUrl}
                     controls
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+                    title={`${title} trailer`}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                    }}
                   />
                 ) : (
                   <iframe
                     src={trailerUrl}
-                    frameBorder="0"
-                    allowFullScreen
                     title={`${title} trailer`}
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+                    allowFullScreen
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                      border: 0,
+                    }}
                   />
                 )}
               </div>
-              ) : (
-              <p>No trailer available.</p>
+            ) : (
+              <p>No trailer is currently available.</p>
             )}
           </div>
         </div>
