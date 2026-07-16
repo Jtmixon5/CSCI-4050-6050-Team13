@@ -8,28 +8,57 @@ import {
 import type { Movie } from "./types/Movie";
 import MovieDetails from "./components/MovieDetails";
 import FavoriteButton from "./components/FavoriteButton";
+import ProfilePage from "./components/ProfilePage";
 import "./App.css";
 
 function App() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-  const [selectedShowtime, setSelectedShowtime] = useState<string | null>(null);
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
 
-  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
-  const [favoriteLoadingIds, setFavoriteLoadingIds] = useState<number[]>([]);
-  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+  const [selectedMovie, setSelectedMovie] =
+    useState<Movie | null>(null);
 
-  const [adultTickets, setAdultTickets] = useState(1);
-  const [childTickets, setChildTickets] = useState(0);
-  const [seniorTickets, setSeniorTickets] = useState(0);
+  const [selectedShowtime, setSelectedShowtime] =
+    useState<string | null>(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedGenre, setSelectedGenre] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [selectedSeats, setSelectedSeats] =
+    useState<string[]>([]);
 
-  const showtimes = ["2:00 PM", "5:00 PM", "8:00 PM"];
+  const [showProfile, setShowProfile] =
+    useState(false);
+
+  const [favoriteIds, setFavoriteIds] =
+    useState<number[]>([]);
+
+  const [favoriteLoadingIds, setFavoriteLoadingIds] =
+    useState<number[]>([]);
+
+  const [favoriteError, setFavoriteError] =
+    useState<string | null>(null);
+
+  const [adultTickets, setAdultTickets] =
+    useState(1);
+
+  const [childTickets, setChildTickets] =
+    useState(0);
+
+  const [seniorTickets, setSeniorTickets] =
+    useState(0);
+
+  const [searchTerm, setSearchTerm] =
+    useState("");
+
+  const [selectedGenre, setSelectedGenre] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const showtimes = [
+    "2:00 PM",
+    "5:00 PM",
+    "8:00 PM",
+  ];
 
   const seats = [
     "A1",
@@ -53,7 +82,11 @@ function App() {
     return status
       .toLowerCase()
       .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .map(
+        (word) =>
+          word.charAt(0).toUpperCase() +
+          word.slice(1)
+      )
       .join(" ");
   };
 
@@ -63,23 +96,40 @@ function App() {
         setLoading(true);
         setError(null);
 
-        const params = new URLSearchParams();
+        const params =
+          new URLSearchParams();
 
         if (searchTerm.trim()) {
-          params.append("title", searchTerm.trim());
+          params.append(
+            "title",
+            searchTerm.trim()
+          );
         }
 
         if (selectedGenre) {
-          params.append("category", selectedGenre);
+          params.append(
+            "category",
+            selectedGenre
+          );
         }
 
-        const queryString = params.toString();
-        const url = queryString ? `/movies?${queryString}` : "/movies";
+        const queryString =
+          params.toString();
 
-        const response = await apiClient.get<Movie[]>(url);
+        const url = queryString
+          ? `/movies?${queryString}`
+          : "/movies";
+
+        const response =
+          await apiClient.get<Movie[]>(
+            url
+          );
+
         setMovies(response.data);
       } catch {
-        setError("Unable to load movies.");
+        setError(
+          "Unable to load movies."
+        );
       } finally {
         setLoading(false);
       }
@@ -93,41 +143,66 @@ function App() {
       try {
         setFavoriteError(null);
 
-        const favorites = await getFavorites();
+        const favorites =
+          await getFavorites();
 
         setFavoriteIds(
-          favorites.map((movie) => movie.id)
+          favorites.map(
+            (movie) => movie.id
+          )
         );
       } catch {
-        setFavoriteError("Unable to load your favorite movies.");
+        setFavoriteError(
+          "Unable to load your favorite movies."
+        );
       }
     }
 
     void loadFavorites();
   }, []);
 
-  const openBookingPage = (movie: Movie, showtime: string) => {
+  const openBookingPage = (
+    movie: Movie,
+    showtime: string
+  ) => {
     setSelectedMovie(movie);
     setSelectedShowtime(showtime);
     setSelectedSeats([]);
   };
 
-  const toggleSeat = (seat: string) => {
-    setSelectedSeats((currentSeats) =>
-      currentSeats.includes(seat)
-        ? currentSeats.filter((currentSeat) => currentSeat !== seat)
-        : [...currentSeats, seat]
+  const toggleSeat = (
+    seat: string
+  ) => {
+    setSelectedSeats(
+      (currentSeats) =>
+        currentSeats.includes(seat)
+          ? currentSeats.filter(
+              (currentSeat) =>
+                currentSeat !== seat
+            )
+          : [...currentSeats, seat]
     );
   };
 
-  const toggleFavorite = async (movieId: number) => {
-    if (favoriteLoadingIds.includes(movieId)) {
+  const toggleFavorite = async (
+    movieId: number
+  ) => {
+    if (
+      favoriteLoadingIds.includes(
+        movieId
+      )
+    ) {
       return;
     }
 
-    const wasFavorite = favoriteIds.includes(movieId);
+    const wasFavorite =
+      favoriteIds.includes(movieId);
 
-    setFavoriteLoadingIds((ids) => [...ids, movieId]);
+    setFavoriteLoadingIds((ids) => [
+      ...ids,
+      movieId,
+    ]);
+
     setFavoriteError(null);
 
     try {
@@ -135,7 +210,9 @@ function App() {
         await removeFavorite(movieId);
 
         setFavoriteIds((ids) =>
-          ids.filter((id) => id !== movieId)
+          ids.filter(
+            (id) => id !== movieId
+          )
         );
       } else {
         await addFavorite(movieId);
@@ -153,8 +230,11 @@ function App() {
           : "Unable to add the movie to favorites."
       );
     } finally {
-      setFavoriteLoadingIds((ids) =>
-        ids.filter((id) => id !== movieId)
+      setFavoriteLoadingIds(
+        (ids) =>
+          ids.filter(
+            (id) => id !== movieId
+          )
       );
     }
   };
@@ -164,15 +244,41 @@ function App() {
     childTickets * 9.99 +
     seniorTickets * 11.99;
 
-  const currentlyRunningMovies = movies.filter(
-    (movie) => movie.status === "CURRENTLY_PLAYING"
-  );
+  const currentlyRunningMovies =
+    movies.filter(
+      (movie) =>
+        movie.status ===
+        "CURRENTLY_PLAYING"
+    );
 
-  const comingSoonMovies = movies.filter(
-    (movie) => movie.status === "COMING_SOON"
-  );
+  const comingSoonMovies =
+    movies.filter(
+      (movie) =>
+        movie.status ===
+        "COMING_SOON"
+    );
 
-  if (selectedMovie && selectedShowtime) {
+  if (showProfile) {
+    return (
+      <main>
+        <button
+          type="button"
+          onClick={() =>
+            setShowProfile(false)
+          }
+        >
+          Back to Movies
+        </button>
+
+        <ProfilePage />
+      </main>
+    );
+  }
+
+  if (
+    selectedMovie &&
+    selectedShowtime
+  ) {
     return (
       <main>
         <button
@@ -186,8 +292,15 @@ function App() {
         </button>
 
         <h1>Booking Page</h1>
-        <h2>{selectedMovie.title}</h2>
-        <p>Showtime: {selectedShowtime}</p>
+
+        <h2>
+          {selectedMovie.title}
+        </h2>
+
+        <p>
+          Showtime:{" "}
+          {selectedShowtime}
+        </p>
 
         <section>
           <h3>Tickets</h3>
@@ -199,7 +312,11 @@ function App() {
               min="0"
               value={adultTickets}
               onChange={(event) =>
-                setAdultTickets(Number(event.target.value))
+                setAdultTickets(
+                  Number(
+                    event.target.value
+                  )
+                )
               }
             />
           </label>
@@ -211,7 +328,11 @@ function App() {
               min="0"
               value={childTickets}
               onChange={(event) =>
-                setChildTickets(Number(event.target.value))
+                setChildTickets(
+                  Number(
+                    event.target.value
+                  )
+                )
               }
             />
           </label>
@@ -223,7 +344,11 @@ function App() {
               min="0"
               value={seniorTickets}
               onChange={(event) =>
-                setSeniorTickets(Number(event.target.value))
+                setSeniorTickets(
+                  Number(
+                    event.target.value
+                  )
+                )
               }
             />
           </label>
@@ -232,7 +357,9 @@ function App() {
         <section>
           <h3>Select Seats</h3>
 
-          <div className="screen">SCREEN</div>
+          <div className="screen">
+            SCREEN
+          </div>
 
           <div className="seat-grid">
             {seats.map((seat) => (
@@ -240,11 +367,15 @@ function App() {
                 type="button"
                 key={seat}
                 className={
-                  selectedSeats.includes(seat)
+                  selectedSeats.includes(
+                    seat
+                  )
                     ? "seat selected"
                     : "seat"
                 }
-                onClick={() => toggleSeat(seat)}
+                onClick={() =>
+                  toggleSeat(seat)
+                }
               >
                 {seat}
               </button>
@@ -253,18 +384,26 @@ function App() {
 
           <p>
             Selected Seats:{" "}
-            {selectedSeats.join(", ") || "None"}
+            {selectedSeats.join(", ") ||
+              "None"}
           </p>
         </section>
 
-        <h3>Total: ${total.toFixed(2)}</h3>
+        <h3>
+          Total: ${total.toFixed(2)}
+        </h3>
 
-        <button type="button">Continue</button>
+        <button type="button">
+          Continue
+        </button>
       </main>
     );
   }
 
-  if (selectedMovie && !selectedShowtime) {
+  if (
+    selectedMovie &&
+    !selectedShowtime
+  ) {
     return (
       <main>
         <button
@@ -280,7 +419,10 @@ function App() {
         <MovieDetails
           movie={selectedMovie}
           onSelectShowtime={(time) =>
-            openBookingPage(selectedMovie, time)
+            openBookingPage(
+              selectedMovie,
+              time
+            )
           }
         />
       </main>
@@ -291,6 +433,15 @@ function App() {
     <main>
       <h1>Cinema E-Booking</h1>
 
+      <button
+        type="button"
+        onClick={() =>
+          setShowProfile(true)
+        }
+      >
+        My Profile
+      </button>
+
       <section>
         <input
           className="search-box"
@@ -298,25 +449,55 @@ function App() {
           placeholder="Search movies by title"
           value={searchTerm}
           onChange={(event) =>
-            setSearchTerm(event.target.value)
+            setSearchTerm(
+              event.target.value
+            )
           }
         />
 
         <select
           value={selectedGenre}
           onChange={(event) =>
-            setSelectedGenre(event.target.value)
+            setSelectedGenre(
+              event.target.value
+            )
           }
         >
-          <option value="">All Genres</option>
-          <option value="Action">Action</option>
-          <option value="Adventure">Adventure</option>
-          <option value="Animation">Animation</option>
-          <option value="Comedy">Comedy</option>
-          <option value="Fantasy">Fantasy</option>
-          <option value="Historical Drama">Historical Drama</option>
-          <option value="Horror">Horror</option>
-          <option value="Science Fiction">Science Fiction</option>
+          <option value="">
+            All Genres
+          </option>
+
+          <option value="Action">
+            Action
+          </option>
+
+          <option value="Adventure">
+            Adventure
+          </option>
+
+          <option value="Animation">
+            Animation
+          </option>
+
+          <option value="Comedy">
+            Comedy
+          </option>
+
+          <option value="Fantasy">
+            Fantasy
+          </option>
+
+          <option value="Historical Drama">
+            Historical Drama
+          </option>
+
+          <option value="Horror">
+            Horror
+          </option>
+
+          <option value="Science Fiction">
+            Science Fiction
+          </option>
         </select>
 
         <input
@@ -327,123 +508,207 @@ function App() {
       </section>
 
       <section>
-        {loading && <p>Loading movies...</p>}
-
-        {error && <p role="alert">{error}</p>}
-
-        {favoriteError && (
-          <p role="alert">{favoriteError}</p>
+        {loading && (
+          <p>Loading movies...</p>
         )}
 
-        {!loading && !error && movies.length === 0 && (
-          <p>No movies match your search or filter.</p>
+        {error && (
+          <p role="alert">
+            {error}
+          </p>
+        )}
+
+        {favoriteError && (
+          <p role="alert">
+            {favoriteError}
+          </p>
         )}
 
         {!loading &&
           !error &&
-          currentlyRunningMovies.length > 0 && (
-            <section>
-              <h2>Currently Running</h2>
+          movies.length === 0 && (
+            <p>
+              No movies match your
+              search or filter.
+            </p>
+          )}
 
-              {currentlyRunningMovies.map((movie) => (
-                <article key={movie.id}>
-                  <h3
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMovie(movie)}
+        {!loading &&
+          !error &&
+          currentlyRunningMovies.length >
+            0 && (
+            <section>
+              <h2>
+                Currently Running
+              </h2>
+
+              {currentlyRunningMovies.map(
+                (movie) => (
+                  <article key={movie.id}>
+                    <h3
                       style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        color: "#007bff",
-                        textDecoration: "underline",
-                        cursor: "pointer",
-                        fontSize: "inherit",
+                        display: "flex",
+                        alignItems:
+                          "center",
+                        gap: "8px",
                       }}
                     >
-                      {movie.title}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedMovie(
+                            movie
+                          )
+                        }
+                        style={{
+                          background:
+                            "none",
+                          border: "none",
+                          padding: 0,
+                          margin: 0,
+                          color:
+                            "#007bff",
+                          textDecoration:
+                            "underline",
+                          cursor:
+                            "pointer",
+                          fontSize:
+                            "inherit",
+                        }}
+                      >
+                        {movie.title}
+                      </button>
 
-                    <FavoriteButton
-                      isFavorite={favoriteIds.includes(movie.id)}
-                      disabled={favoriteLoadingIds.includes(movie.id)}
-                      onClick={() => toggleFavorite(movie.id)}
-                    />
-                  </h3>
+                      <FavoriteButton
+                        isFavorite={favoriteIds.includes(
+                          movie.id
+                        )}
+                        disabled={favoriteLoadingIds.includes(
+                          movie.id
+                        )}
+                        onClick={() =>
+                          toggleFavorite(
+                            movie.id
+                          )
+                        }
+                      />
+                    </h3>
 
-                  <p>{movie.category}</p>
-                  <p>{movie.synopsis}</p>
-                  <p>Status: {formatStatus(movie.status)}</p>
+                    <p>
+                      {movie.category}
+                    </p>
 
-                  <h4>Showtimes</h4>
+                    <p>
+                      {movie.synopsis}
+                    </p>
 
-                  {showtimes.map((time) => (
-                    <button
-                      type="button"
-                      key={time}
-                      onClick={() =>
-                        openBookingPage(movie, time)
-                      }
-                    >
-                      {time}
-                    </button>
-                  ))}
-                </article>
-              ))}
+                    <p>
+                      Status:{" "}
+                      {formatStatus(
+                        movie.status
+                      )}
+                    </p>
+
+                    <h4>Showtimes</h4>
+
+                    {showtimes.map(
+                      (time) => (
+                        <button
+                          type="button"
+                          key={time}
+                          onClick={() =>
+                            openBookingPage(
+                              movie,
+                              time
+                            )
+                          }
+                        >
+                          {time}
+                        </button>
+                      )
+                    )}
+                  </article>
+                )
+              )}
             </section>
           )}
 
         {!loading &&
           !error &&
-          comingSoonMovies.length > 0 && (
+          comingSoonMovies.length >
+            0 && (
             <section>
               <h2>Coming Soon</h2>
 
-              {comingSoonMovies.map((movie) => (
-                <article key={movie.id}>
-                  <h3
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMovie(movie)}
+              {comingSoonMovies.map(
+                (movie) => (
+                  <article key={movie.id}>
+                    <h3
                       style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        color: "#007bff",
-                        textDecoration: "underline",
-                        cursor: "pointer",
-                        fontSize: "inherit",
+                        display: "flex",
+                        alignItems:
+                          "center",
+                        gap: "8px",
                       }}
                     >
-                      {movie.title}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedMovie(
+                            movie
+                          )
+                        }
+                        style={{
+                          background:
+                            "none",
+                          border: "none",
+                          padding: 0,
+                          margin: 0,
+                          color:
+                            "#007bff",
+                          textDecoration:
+                            "underline",
+                          cursor:
+                            "pointer",
+                          fontSize:
+                            "inherit",
+                        }}
+                      >
+                        {movie.title}
+                      </button>
 
-                    <FavoriteButton
-                      isFavorite={favoriteIds.includes(movie.id)}
-                      disabled={favoriteLoadingIds.includes(movie.id)}
-                      onClick={() => toggleFavorite(movie.id)}
-                    />
-                  </h3>
+                      <FavoriteButton
+                        isFavorite={favoriteIds.includes(
+                          movie.id
+                        )}
+                        disabled={favoriteLoadingIds.includes(
+                          movie.id
+                        )}
+                        onClick={() =>
+                          toggleFavorite(
+                            movie.id
+                          )
+                        }
+                      />
+                    </h3>
 
-                  <p>{movie.category}</p>
-                  <p>{movie.synopsis}</p>
-                  <p>Status: {formatStatus(movie.status)}</p>
-                </article>
-              ))}
+                    <p>
+                      {movie.category}
+                    </p>
+
+                    <p>
+                      {movie.synopsis}
+                    </p>
+
+                    <p>
+                      Status:{" "}
+                      {formatStatus(
+                        movie.status
+                      )}
+                    </p>
+                  </article>
+                )
+              )}
             </section>
           )}
       </section>
