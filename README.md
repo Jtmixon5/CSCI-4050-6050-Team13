@@ -132,6 +132,42 @@ Open that address in a browser.
 
 The frontend development server proxies requests beginning with `/api` to the Spring Boot backend at port `8080`.
 
+## Sprint 2 Account Configuration
+
+Registration, email verification, password reset, profile-change
+notifications, session login/logout, and customer/admin access control are
+implemented.
+
+Before starting the backend for an email-enabled demonstration, export the
+mail and encryption variables from `.env.example`. On PowerShell:
+
+```powershell
+$env:PAYMENT_ENCRYPTION_KEY = "use-a-long-random-secret"
+$env:FRONTEND_URL = "http://localhost:5173"
+$env:MAIL_HOST = "your-smtp-host"
+$env:MAIL_PORT = "587"
+$env:MAIL_USERNAME = "your-smtp-username"
+$env:MAIL_PASSWORD = "your-smtp-password"
+$env:MAIL_FROM = "your-verified-sender@example.com"
+```
+
+When SMTP is not configured, confirmation and reset links are written to the
+backend log for local development. A real SMTP configuration is required to
+demonstrate email delivery.
+
+The demo administrator account is:
+
+```text
+Email: admin@cinema.com
+Password: Admin123!
+```
+
+Change this password outside a classroom/demo environment.
+
+New customer accounts are stored as `INACTIVE`. Following the email
+confirmation link changes the account to `ACTIVE`, after which the customer
+can sign in. Authenticated sessions expire after 30 minutes.
+
 ## 6. Add a Test Movie
 
 Send a `POST` request using Postman:

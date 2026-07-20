@@ -91,10 +91,11 @@ export const MovieDetails: React.FC<MovieDetailsProps> = ({
         }}
       >
         <img
-          src={posterUrl || "/placeholder-poster.png"}
+          src={posterUrl || "/placeholder-poster.svg"}
           alt={`${title} poster`}
           onError={(event) => {
-            event.currentTarget.src = "/placeholder-poster.png";
+            event.currentTarget.onerror = null;
+            event.currentTarget.src = "/placeholder-poster.svg";
           }}
           style={{
             width: 260,

@@ -97,7 +97,7 @@ CREATE TABLE payment_cards (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
 
-    card_slot TINYINT NOT NULL,
+    card_slot INT NOT NULL,
 
     cardholder_name VARCHAR(150) NOT NULL,
     card_type VARCHAR(50) NOT NULL,

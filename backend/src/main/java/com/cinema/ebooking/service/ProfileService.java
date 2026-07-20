@@ -11,41 +11,41 @@ import com.cinema.ebooking.repository.PaymentCardRepository;
 import com.cinema.ebooking.repository.UserAddressRepository;
 import com.cinema.ebooking.repository.UserRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.YearMonth;
 
 @Service
 public class ProfileService {
 
     private static final int MAX_PAYMENT_CARDS = 3;
 
-    /*
-     * Temporary development encryption key.
-     * Replace with an environment variable/configured secret.
-     */
-    private static final String DEVELOPMENT_ENCRYPTION_KEY =
-        "change-this-development-payment-key";
-
     private final UserRepository userRepository;
     private final UserAddressRepository addressRepository;
     private final PaymentCardRepository paymentCardRepository;
     private final PaymentInformationEncryptionService encryptionService;
+    private final RegistrationEmailService emailService;
 
     public ProfileService(
         UserRepository userRepository,
         UserAddressRepository addressRepository,
-        PaymentCardRepository paymentCardRepository
+        PaymentCardRepository paymentCardRepository,
+        RegistrationEmailService emailService,
+        @Value("${PAYMENT_ENCRYPTION_KEY:change-this-local-development-key}")
+        String paymentEncryptionKey
     ) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.paymentCardRepository = paymentCardRepository;
+        this.emailService = emailService;
         this.encryptionService =
             new PaymentInformationEncryptionService(
-                DEVELOPMENT_ENCRYPTION_KEY
+                paymentEncryptionKey
             );
     }
 
@@ -87,10 +87,7 @@ public class ProfileService {
         updateAddress(user, request.address());
         updateCards(user, request.paymentCards());
 
-        /*
-         * TODO:
-         * Send profile-change notification email here.
-         */
+        emailService.sendProfileChanged(user.getEmail());
 
         return getProfile(userId);
     }
@@ -144,49 +141,46 @@ public class ProfileService {
             );
         }
 
-        /*
-         * Simplest Sprint 2 synchronization:
-         * replace the user's saved card list with the submitted list.
-         */
-        paymentCardRepository.deleteAllByUserId(user.getId());
-        paymentCardRepository.flush();
-
         List<PaymentCard> cardsToSave = new ArrayList<>();
+        List<Long> submittedExistingIds = safeCards.stream()
+            .map(PaymentCardDto::id)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+        if (submittedExistingIds.stream().distinct().count()
+            != submittedExistingIds.size()) {
+            throw badRequest("A saved payment card may only appear once.");
+        }
+
+        paymentCardRepository
+            .findAllByUserIdOrderByCardSlotAsc(user.getId())
+            .stream()
+            .filter(card -> !submittedExistingIds.contains(card.getId()))
+            .forEach(paymentCardRepository::delete);
 
         for (int index = 0; index < safeCards.size(); index++) {
             PaymentCardDto cardDto = safeCards.get(index);
 
-            validateCard(cardDto);
-
-            String lastFour = cardDto.lastFour().trim();
-
-            /*
-             * The current frontend only supplies the final four digits.
-             * These encrypted placeholders satisfy the non-null database
-             * columns until the frontend collects full card data.
-             */
-            String encryptedNumber =
-                encryptionService.encrypt(lastFour);
-
-            String encryptedMonth =
-                encryptionService.encrypt("00");
-
-            String encryptedYear =
-                encryptionService.encrypt("0000");
-
-            PaymentCard card = new PaymentCard(
-                user,
-                index + 1,
-                cardDto.cardholderName().trim(),
-                "UNKNOWN",
-                lastFour,
-                encryptedNumber,
-                encryptedMonth,
-                encryptedYear,
-                cardDto.billingZipCode().trim()
-            );
-
-            cardsToSave.add(card);
+            if (cardDto.id() != null) {
+                PaymentCard existing = paymentCardRepository
+                    .findByIdAndUserId(cardDto.id(), user.getId())
+                    .orElseThrow(() -> badRequest("Saved payment card was not found."));
+                existing.setCardSlot(index + 1);
+                cardsToSave.add(existing);
+            } else {
+                validateCard(cardDto);
+                String number = cardDto.cardNumber().replaceAll("\\s+", "");
+                cardsToSave.add(new PaymentCard(
+                    user,
+                    index + 1,
+                    cardDto.cardholderName().trim(),
+                    cardDto.cardType().trim(),
+                    number.substring(number.length() - 4),
+                    encryptionService.encrypt(number),
+                    encryptionService.encrypt(cardDto.expirationMonth().trim()),
+                    encryptionService.encrypt(cardDto.expirationYear().trim()),
+                    cardDto.billingZipCode().trim()
+                ));
+            }
         }
 
         paymentCardRepository.saveAll(cardsToSave);
@@ -245,11 +239,31 @@ public class ProfileService {
             );
         }
 
-        if (card.lastFour() == null
-            || !card.lastFour().matches("\\d{4}")) {
+        if (card.cardType() == null || card.cardType().isBlank()) {
+            throw badRequest("Card type is required.");
+        }
+        String cardNumber = card.cardNumber() == null
+            ? ""
+            : card.cardNumber().replaceAll("\\s+", "");
+        if (!cardNumber.matches("\\d{13,19}")) {
             throw badRequest(
-                "Card last four must contain exactly four digits."
+                "Payment card number must contain 13 to 19 digits."
             );
+        }
+        if (card.expirationMonth() == null
+            || !card.expirationMonth().matches("0[1-9]|1[0-2]")) {
+            throw badRequest("Expiration month must be between 01 and 12.");
+        }
+        if (card.expirationYear() == null
+            || !card.expirationYear().matches("\\d{4}")) {
+            throw badRequest("Expiration year must contain four digits.");
+        }
+        YearMonth expiration = YearMonth.of(
+            Integer.parseInt(card.expirationYear()),
+            Integer.parseInt(card.expirationMonth())
+        );
+        if (expiration.isBefore(YearMonth.now())) {
+            throw badRequest("Payment card has expired.");
         }
 
         if (card.billingZipCode() == null
@@ -305,6 +319,10 @@ public class ProfileService {
         return new PaymentCardDto(
             card.getId(),
             card.getCardholderName(),
+            card.getCardType(),
+            null,
+            null,
+            null,
             card.getLastFour(),
             card.getBillingZipCode()
         );

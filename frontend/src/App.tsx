@@ -9,6 +9,17 @@ import type { Movie } from "./types/Movie";
 import MovieDetails from "./components/MovieDetails";
 import FavoriteButton from "./components/FavoriteButton";
 import ProfilePage from "./components/ProfilePage";
+import RegistrationForm from "./components/RegistrationForm";
+import EmailVerificationPage from "./components/EmailVerificationPage";
+import LoginPage from "./components/LoginPage";
+import PasswordResetPage from "./components/PasswordResetPage";
+import AdminHome from "./components/AdminHome";
+import {
+  getCurrentUser,
+  initializeCsrf,
+  logout,
+} from "./api/auth";
+import type { AuthUser } from "./api/auth";
 import "./App.css";
 
 function App() {
@@ -26,6 +37,14 @@ function App() {
 
   const [showProfile, setShowProfile] =
     useState(false);
+
+  const [showRegistration, setShowRegistration] =
+    useState(false);
+
+  const [showLogin, setShowLogin] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [favoriteIds, setFavoriteIds] =
     useState<number[]>([]);
@@ -77,6 +96,10 @@ function App() {
     "C4",
     "C5",
   ];
+
+  // Temporary showtime seat data until persisted seat inventory is added.
+  const bookedSeats = ["A2", "B4"];
+  const unavailableSeats = ["C1"];
 
   const formatStatus = (status: string) => {
     return status
@@ -139,7 +162,23 @@ function App() {
   }, [searchTerm, selectedGenre]);
 
   useEffect(() => {
+    async function loadUser() {
+      try {
+        await initializeCsrf();
+        setAuthUser(await getCurrentUser());
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+    void loadUser();
+  }, []);
+
+  useEffect(() => {
     async function loadFavorites() {
+      if (!authUser) {
+        setFavoriteIds([]);
+        return;
+      }
       try {
         setFavoriteError(null);
 
@@ -159,7 +198,7 @@ function App() {
     }
 
     void loadFavorites();
-  }, []);
+  }, [authUser]);
 
   const openBookingPage = (
     movie: Movie,
@@ -173,6 +212,13 @@ function App() {
   const toggleSeat = (
     seat: string
   ) => {
+    if (
+      bookedSeats.includes(seat) ||
+      unavailableSeats.includes(seat)
+    ) {
+      return;
+    }
+
     setSelectedSeats(
       (currentSeats) =>
         currentSeats.includes(seat)
@@ -187,6 +233,11 @@ function App() {
   const toggleFavorite = async (
     movieId: number
   ) => {
+    if (!authUser) {
+      setFavoriteError("Sign in to save favorite movies.");
+      setShowLogin(true);
+      return;
+    }
     if (
       favoriteLoadingIds.includes(
         movieId
@@ -257,6 +308,107 @@ function App() {
         movie.status ===
         "COMING_SOON"
     );
+
+  const verificationToken =
+    window.location.pathname === "/verify-email"
+      ? new URLSearchParams(window.location.search).get("token")
+      : null;
+
+  const resetToken =
+    window.location.pathname === "/reset-password"
+      ? new URLSearchParams(window.location.search).get("token")
+      : null;
+
+  const returnToLogin = () => {
+    window.history.replaceState({}, "", "/");
+    setShowForgotPassword(false);
+    setShowRegistration(false);
+    setShowLogin(true);
+  };
+
+  const signOut = async () => {
+    try {
+      setError(null);
+      await logout();
+      setAuthUser(null);
+      setShowProfile(false);
+      setSelectedMovie(null);
+      setSelectedShowtime(null);
+      await initializeCsrf();
+    } catch {
+      setError("Unable to log out. Please try again.");
+    }
+  };
+
+  if (verificationToken) {
+    return (
+      <EmailVerificationPage
+        token={verificationToken}
+        onContinue={() => {
+          window.history.replaceState({}, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  if (resetToken) {
+    return (
+      <PasswordResetPage
+        token={resetToken}
+        onContinue={returnToLogin}
+      />
+    );
+  }
+
+  if (authLoading) {
+    return <main><p>Loading...</p></main>;
+  }
+
+  if (authUser?.role === "ADMIN") {
+    return (
+      <AdminHome
+        name={authUser.firstName}
+        onLogout={() => void signOut()}
+      />
+    );
+  }
+
+  if (showForgotPassword) {
+    return (
+      <PasswordResetPage
+        onContinue={returnToLogin}
+      />
+    );
+  }
+
+  if (showLogin) {
+    return (
+      <LoginPage
+        onLogin={(user) => {
+          setAuthUser(user);
+          setShowLogin(false);
+        }}
+        onCancel={() => setShowLogin(false)}
+        onForgotPassword={() => {
+          setShowLogin(false);
+          setShowForgotPassword(true);
+        }}
+        onRegister={() => {
+          setShowLogin(false);
+          setShowRegistration(true);
+        }}
+      />
+    );
+  }
+
+  if (showRegistration) {
+    return (
+      <RegistrationForm
+        onCancel={() => setShowRegistration(false)}
+      />
+    );
+  }
 
   if (showProfile) {
     return (
@@ -361,25 +513,67 @@ function App() {
             SCREEN
           </div>
 
+          <div
+            className="seat-legend"
+            aria-label="Seat status legend"
+          >
+            <span>
+              <span className="legend-swatch available" />
+              Available
+            </span>
+            <span>
+              <span className="legend-swatch selected" />
+              Selected
+            </span>
+            <span>
+              <span className="legend-swatch booked" />
+              Booked
+            </span>
+            <span>
+              <span className="legend-swatch unavailable" />
+              Not available
+            </span>
+          </div>
+
           <div className="seat-grid">
-            {seats.map((seat) => (
-              <button
-                type="button"
-                key={seat}
-                className={
-                  selectedSeats.includes(
-                    seat
-                  )
-                    ? "seat selected"
-                    : "seat"
-                }
-                onClick={() =>
-                  toggleSeat(seat)
-                }
-              >
-                {seat}
-              </button>
-            ))}
+            {seats.map((seat) => {
+              const isBooked =
+                bookedSeats.includes(seat);
+              const isUnavailable =
+                unavailableSeats.includes(seat);
+              const isSelected =
+                selectedSeats.includes(seat);
+              const status = isBooked
+                ? "booked"
+                : isUnavailable
+                  ? "unavailable"
+                  : isSelected
+                    ? "selected"
+                    : "available";
+
+              return (
+                <button
+                  type="button"
+                  key={seat}
+                  className={`seat ${status}`}
+                  disabled={isBooked || isUnavailable}
+                  aria-label={`${seat}, ${
+                    status === "unavailable"
+                      ? "not available"
+                      : status
+                  }`}
+                  title={
+                    status === "unavailable"
+                      ? "Not available"
+                      : status.charAt(0).toUpperCase() +
+                        status.slice(1)
+                  }
+                  onClick={() => toggleSeat(seat)}
+                >
+                  {seat}
+                </button>
+              );
+            })}
           </div>
 
           <p>
@@ -435,12 +629,28 @@ function App() {
 
       <button
         type="button"
-        onClick={() =>
-          setShowProfile(true)
-        }
+        onClick={() => authUser
+          ? setShowProfile(true)
+          : setShowLogin(true)}
       >
-        My Profile
+        {authUser ? "My Profile" : "Sign In"}
       </button>
+
+      {authUser ? (
+        <>
+          <span>Welcome, {authUser.firstName}</span>
+          <button type="button" onClick={() => void signOut()}>
+            Logout
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowRegistration(true)}
+        >
+          Register
+        </button>
+      )}
 
       <section>
         <input
@@ -544,7 +754,19 @@ function App() {
 
               {currentlyRunningMovies.map(
                 (movie) => (
-                  <article key={movie.id}>
+                  <article key={movie.id} className="movie-card">
+                    <img
+                      className="movie-poster"
+                      src={movie.posterUrl || "/placeholder-poster.svg"}
+                      alt={`${movie.title} poster`}
+                      loading="lazy"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = "/placeholder-poster.svg";
+                      }}
+                    />
+
+                    <div className="movie-card-content">
                     <h3
                       style={{
                         display: "flex",
@@ -567,7 +789,7 @@ function App() {
                           padding: 0,
                           margin: 0,
                           color:
-                            "#007bff",
+                            "var(--accent)",
                           textDecoration:
                             "underline",
                           cursor:
@@ -627,6 +849,7 @@ function App() {
                         </button>
                       )
                     )}
+                    </div>
                   </article>
                 )
               )}
@@ -642,7 +865,19 @@ function App() {
 
               {comingSoonMovies.map(
                 (movie) => (
-                  <article key={movie.id}>
+                  <article key={movie.id} className="movie-card">
+                    <img
+                      className="movie-poster"
+                      src={movie.posterUrl || "/placeholder-poster.svg"}
+                      alt={`${movie.title} poster`}
+                      loading="lazy"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = "/placeholder-poster.svg";
+                      }}
+                    />
+
+                    <div className="movie-card-content">
                     <h3
                       style={{
                         display: "flex",
@@ -665,7 +900,7 @@ function App() {
                           padding: 0,
                           margin: 0,
                           color:
-                            "#007bff",
+                            "var(--accent)",
                           textDecoration:
                             "underline",
                           cursor:
@@ -706,6 +941,7 @@ function App() {
                         movie.status
                       )}
                     </p>
+                    </div>
                   </article>
                 )
               )}

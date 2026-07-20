@@ -140,7 +140,15 @@ public void setPhoneNumber(String phoneNumber) {
     this.phoneNumber = phoneNumber;
 }
 
-public void setPromotionOptIn(boolean promotionOptIn) {
-    this.promotionOptIn = promotionOptIn;
-}
+    public void setPromotionOptIn(boolean promotionOptIn) {
+        this.promotionOptIn = promotionOptIn;
+    }
+
+    public void activate() {
+        this.accountStatus = AccountStatus.ACTIVE;
+    }
+
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
 }

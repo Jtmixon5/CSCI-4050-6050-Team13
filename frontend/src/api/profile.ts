@@ -1,7 +1,5 @@
 import { apiClient } from "./client";
 
-const USER_ID = 1;
-
 export interface Address {
   street: string;
   city: string;
@@ -12,6 +10,10 @@ export interface Address {
 export interface PaymentCard {
   id?: number;
   cardholderName: string;
+  cardType: string;
+  cardNumber?: string;
+  expirationMonth?: string;
+  expirationYear?: string;
   lastFour: string;
   billingZipCode: string;
 }
@@ -38,7 +40,7 @@ export interface UpdateProfileRequest {
 
 export async function getProfile(): Promise<UserProfile> {
   const response = await apiClient.get<UserProfile>(
-    `/users/${USER_ID}/profile`
+    "/profile"
   );
 
   return response.data;
@@ -48,7 +50,7 @@ export async function updateProfile(
   request: UpdateProfileRequest
 ): Promise<UserProfile> {
   const response = await apiClient.put<UserProfile>(
-    `/users/${USER_ID}/profile`,
+    "/profile",
     request
   );
 

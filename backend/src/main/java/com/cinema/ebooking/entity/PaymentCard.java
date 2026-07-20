@@ -95,6 +95,10 @@ public class PaymentCard {
         return id;
     }
 
+    public void setCardSlot(int cardSlot) {
+        this.cardSlot = cardSlot;
+    }
+
     public int getCardSlot() {
         return cardSlot;
     }

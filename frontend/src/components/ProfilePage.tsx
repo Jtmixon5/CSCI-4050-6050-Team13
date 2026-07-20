@@ -12,6 +12,10 @@ import type {
 import { getFavorites } from "../api/favorites";
 import type { Movie } from "../types/Movie";
 import FavoritesList from "./FavoritesList";
+import {
+  changePassword,
+  getApiErrorMessage,
+} from "../api/auth";
 
 const emptyAddress: Address = {
   street: "",
@@ -22,6 +26,10 @@ const emptyAddress: Address = {
 
 const emptyCard: PaymentCard = {
   cardholderName: "",
+  cardType: "",
+  cardNumber: "",
+  expirationMonth: "",
+  expirationYear: "",
   lastFour: "",
   billingZipCode: "",
 };
@@ -48,17 +56,17 @@ export default function ProfilePage() {
   const [success, setSuccess] =
     useState<string | null>(null);
 
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
   useEffect(() => {
     async function loadPage() {
       try {
         setLoading(true);
         setError(null);
 
-        const [loadedProfile, loadedFavorites] =
-          await Promise.all([
-            getProfile(),
-            getFavorites(),
-          ]);
+        const loadedProfile = await getProfile();
 
         setProfile({
           ...loadedProfile,
@@ -68,7 +76,14 @@ export default function ProfilePage() {
             loadedProfile.paymentCards ?? [],
         });
 
-        setFavorites(loadedFavorites);
+        try {
+          setFavorites(await getFavorites());
+        } catch {
+          setFavorites([]);
+          setError(
+            "Your profile loaded, but favorite movies could not be loaded."
+          );
+        }
       } catch {
         setError(
           "Unable to load the profile. Make sure the backend is running."
@@ -115,10 +130,26 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!/^\d{4}$/.test(newCard.lastFour)) {
-      setError(
-        "Enter exactly four digits for the card's last four digits."
-      );
+    if (!newCard.cardType.trim()) {
+      setError("Card type is required.");
+      return;
+    }
+
+    const normalizedCardNumber =
+      (newCard.cardNumber ?? "").replace(/\s/g, "");
+
+    if (!/^\d{13,19}$/.test(normalizedCardNumber)) {
+      setError("Enter a payment card number containing 13–19 digits.");
+      return;
+    }
+
+    if (!/^(0[1-9]|1[0-2])$/.test(newCard.expirationMonth ?? "")) {
+      setError("Enter an expiration month from 01 to 12.");
+      return;
+    }
+
+    if (!/^\d{4}$/.test(newCard.expirationYear ?? "")) {
+      setError("Enter a four-digit expiration year.");
       return;
     }
 
@@ -137,6 +168,29 @@ export default function ProfilePage() {
 
     setNewCard(emptyCard);
     setError(null);
+  };
+
+  const savePassword = async () => {
+    if (newPassword !== confirmNewPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(
+        await changePassword(currentPassword, newPassword)
+      );
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (requestError) {
+      setError(
+        getApiErrorMessage(requestError, "Unable to change the password.")
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const removeCard = (index: number) => {
@@ -199,9 +253,12 @@ export default function ProfilePage() {
       setSuccess(
         "Profile updated successfully. A notification email should be sent."
       );
-    } catch {
+    } catch (requestError) {
       setError(
-        "Unable to save the profile. Check the backend response."
+        getApiErrorMessage(
+          requestError,
+          "Unable to save the profile. Check the backend response."
+        )
       );
     } finally {
       setSaving(false);
@@ -235,7 +292,7 @@ export default function ProfilePage() {
       {error && (
         <p
           role="alert"
-          style={{ color: "#b00020" }}
+          style={{ color: "var(--danger)" }}
         >
           {error}
         </p>
@@ -244,13 +301,14 @@ export default function ProfilePage() {
       {success && (
         <p
           role="status"
-          style={{ color: "#087f23" }}
+          style={{ color: "var(--success)" }}
         >
           {success}
         </p>
       )}
 
       <form
+        className="profile-form"
         onSubmit={saveProfile}
         style={{
           display: "grid",
@@ -454,19 +512,66 @@ export default function ProfilePage() {
           </label>
 
           <label>
-            Last four digits
+            Card type
+            <select
+              value={newCard.cardType}
+              onChange={(event) =>
+                setNewCard({ ...newCard, cardType: event.target.value })
+              }
+            >
+              <option value="">Select a card type</option>
+              <option value="VISA">Visa</option>
+              <option value="MASTERCARD">Mastercard</option>
+              <option value="AMEX">American Express</option>
+              <option value="DISCOVER">Discover</option>
+            </select>
+          </label>
+
+          <label>
+            Card number
             <input
               inputMode="numeric"
-              maxLength={4}
-              value={newCard.lastFour}
+              autoComplete="cc-number"
+              maxLength={23}
+              value={newCard.cardNumber}
               onChange={(event) =>
                 setNewCard({
                   ...newCard,
-                  lastFour:
-                    event.target.value.replace(
-                      /\D/g,
-                      ""
-                    ),
+                  cardNumber: event.target.value.replace(/[^\d ]/g, ""),
+                })
+              }
+            />
+          </label>
+
+          <label>
+            Expiration month
+            <input
+              inputMode="numeric"
+              autoComplete="cc-exp-month"
+              placeholder="MM"
+              maxLength={2}
+              value={newCard.expirationMonth}
+              onChange={(event) =>
+                setNewCard({
+                  ...newCard,
+                  expirationMonth: event.target.value.replace(/\D/g, ""),
+                })
+              }
+            />
+          </label>
+
+          <label>
+            Expiration year
+            <input
+              inputMode="numeric"
+              autoComplete="cc-exp-year"
+              placeholder="YYYY"
+              maxLength={4}
+              value={newCard.expirationYear}
+              onChange={(event) =>
+                setNewCard({
+                  ...newCard,
+                  expirationYear: event.target.value.replace(/\D/g, ""),
                 })
               }
             />
@@ -494,6 +599,46 @@ export default function ProfilePage() {
             }
           >
             Add Payment Card
+          </button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Change Password</legend>
+          <label>
+            Current password *
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+            />
+          </label>
+          <label>
+            New password *
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </label>
+          <label>
+            Confirm new password *
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={confirmNewPassword}
+              onChange={(event) => setConfirmNewPassword(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={
+              saving || !currentPassword || !newPassword || !confirmNewPassword
+            }
+            onClick={() => void savePassword()}
+          >
+            Change Password
           </button>
         </fieldset>
 
