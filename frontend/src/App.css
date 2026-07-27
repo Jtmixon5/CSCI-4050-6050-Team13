@@ -259,6 +259,23 @@ select {
   color: var(--text-h);
 }
 
+.registration-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+  background: #0e1422;
+  color: var(--text-h);
+}
+
+.registration-form select {
+  width: 100%;
+}
+
 .registration-form small {
   line-height: 1.35;
 }

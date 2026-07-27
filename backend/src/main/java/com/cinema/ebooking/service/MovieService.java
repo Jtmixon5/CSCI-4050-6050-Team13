@@ -71,9 +71,15 @@ public List<Movie> searchMovies(String title, String category, MovieStatus statu
     @Transactional
     public Movie createMovie(CreateMovieRequest request) {
         Movie movie = new Movie(
-                request.title(),
-                request.category(),
-                request.synopsis(),
+                request.title().trim(),
+                request.category().trim(),
+                request.synopsis().trim(),
+                request.castMembers().trim(),
+                request.director().trim(),
+                request.producer().trim(),
+                request.mpaaRating().trim(),
+                request.posterUrl().trim(),
+                request.trailerUrl().trim(),
                 request.status()
         );
 

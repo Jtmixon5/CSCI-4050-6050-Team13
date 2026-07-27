@@ -61,11 +61,23 @@ public class Movie {
             String title,
             String category,
             String synopsis,
+            String castMembers,
+            String director,
+            String producer,
+            String mpaaRating,
+            String posterUrl,
+            String trailerUrl,
             MovieStatus status
     ) {
         this.title = title;
         this.category = category;
         this.synopsis = synopsis;
+        this.castMembers = castMembers;
+        this.director = director;
+        this.producer = producer;
+        this.mpaaRating = mpaaRating;
+        this.posterUrl = posterUrl;
+        this.trailerUrl = trailerUrl;
         this.status = status;
     }
 
