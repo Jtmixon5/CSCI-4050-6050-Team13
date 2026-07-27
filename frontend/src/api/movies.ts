@@ -16,6 +16,11 @@ export interface CreateMovieInput {
   status: MovieStatus;
 }
 
+export async function getMovies(): Promise<Movie[]> {
+  const response = await apiClient.get<Movie[]>("/movies");
+  return response.data;
+}
+
 export async function createMovie(
   movie: CreateMovieInput,
 ): Promise<Movie> {

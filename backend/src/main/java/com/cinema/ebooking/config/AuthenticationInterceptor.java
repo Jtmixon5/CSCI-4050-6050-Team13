@@ -28,14 +28,18 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         String method = request.getMethod();
 
         boolean publicRequest =
-            path.equals("/api/auth/register")
-                || path.equals("/api/auth/csrf")
-                || path.equals("/api/auth/login")
-                || path.equals("/api/auth/verify")
-                || path.equals("/api/auth/forgot-password")
-                || path.equals("/api/auth/reset-password")
-                || (path.startsWith("/api/movies")
-                    && HttpMethod.GET.matches(method));
+    path.equals("/api/auth/register")
+        || path.equals("/api/auth/csrf")
+        || path.equals("/api/auth/login")
+        || path.equals("/api/auth/verify")
+        || path.equals("/api/auth/forgot-password")
+        || path.equals("/api/auth/reset-password")
+        || (path.startsWith("/api/movies")
+            && HttpMethod.GET.matches(method))
+        || (path.startsWith("/api/showrooms")
+            && HttpMethod.GET.matches(method))
+        || (path.startsWith("/api/showtimes")
+            && HttpMethod.GET.matches(method));
 
         if (publicRequest) {
             return true;
