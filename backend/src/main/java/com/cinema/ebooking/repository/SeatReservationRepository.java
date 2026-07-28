@@ -1,14 +1,14 @@
 package com.cinema.ebooking.repository;
 
 import com.cinema.ebooking.entity.Seat;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Set;
 
 public interface SeatReservationRepository
-        extends JpaRepository<Seat, Long> {
+        extends Repository<Seat, Long> {
 
     @Query(
         value = """
