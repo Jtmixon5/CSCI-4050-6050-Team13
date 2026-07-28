@@ -23,6 +23,22 @@ export interface Showtime {
   status: string;
 }
 
+export interface Seat {
+  id: number;
+  label: string;
+  rowLabel: string;
+  seatNumber: number;
+  accessible: boolean;
+  status: "AVAILABLE" | "BOOKED";
+}
+
+export interface SeatMap {
+  showtimeId: number;
+  showroomId: number;
+  showroomName: string;
+  seats: Seat[];
+}
+
 export interface CreateShowtimeInput {
   movieId: number;
   showroomId: number;
@@ -38,13 +54,18 @@ export async function getShowrooms(): Promise<Showroom[]> {
   return response.data;
 }
 
-export async function getShowtimes(
-  movieId?: number,
-): Promise<Showtime[]> {
+export async function getShowtimes(movieId?: number): Promise<Showtime[]> {
   const response = await apiClient.get<Showtime[]>("/showtimes", {
     params: movieId ? { movieId } : undefined,
   });
 
+  return response.data;
+}
+
+export async function getSeatMap(showtimeId: number): Promise<SeatMap> {
+  const response = await apiClient.get<SeatMap>(
+    `/showtimes/${showtimeId}/seats`,
+  );
   return response.data;
 }
 
