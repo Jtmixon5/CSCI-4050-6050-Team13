@@ -1,12 +1,12 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import type { Movie } from "../types/Movie";
+import { getShowtimes } from "../api/showtimes";
+import type { Showtime } from "../api/showtimes";
 
 interface MovieDetailsProps {
   movie: Movie;
-  onSelectShowtime?: (showtime: string) => void;
+  onSelectShowtime?: (showtime: Showtime) => void;
 }
-
-const showtimes = ["2:00 PM", "5:00 PM", "8:00 PM"];
 
 const toYoutubeEmbed = (url: string): string => {
   try {
@@ -14,238 +14,136 @@ const toYoutubeEmbed = (url: string): string => {
 
     if (parsedUrl.hostname.includes("youtu.be")) {
       const videoId = parsedUrl.pathname.replace("/", "");
-
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
     }
 
     if (parsedUrl.hostname.includes("youtube.com")) {
       const videoId = parsedUrl.searchParams.get("v");
-
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
-
-      if (parsedUrl.pathname.startsWith("/embed/")) {
-        return url;
-      }
+      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+      if (parsedUrl.pathname.startsWith("/embed/")) return url;
     }
   } catch {
-    // Return the original URL when it cannot be parsed.
+    // Use the original URL when it cannot be parsed.
   }
 
   return url;
 };
 
-const isYoutubeUrl = (url: string): boolean => {
-  return url.includes("youtube.com") || url.includes("youtu.be");
-};
+const formatDateTime = (value: string): string =>
+  new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
 
-const isVideoFile = (url: string): boolean => {
-  return url.toLowerCase().endsWith(".mp4");
-};
-
-export const MovieDetails: React.FC<MovieDetailsProps> = ({
+export default function MovieDetails({
   movie,
   onSelectShowtime,
-}) => {
-  const {
-    title,
-    synopsis,
-    posterUrl,
-    trailerUrl,
-    mpaaRating,
-    category,
-    status,
-  } = movie;
+}: MovieDetailsProps) {
+  const [showtimes, setShowtimes] = useState<Showtime[]>([]);
+  const [loadingShowtimes, setLoadingShowtimes] = useState(false);
+  const [showtimeError, setShowtimeError] = useState<string | null>(null);
 
-  const formattedStatus = status
+  useEffect(() => {
+    async function loadShowtimes() {
+      if (movie.status !== "CURRENTLY_PLAYING") {
+        setShowtimes([]);
+        return;
+      }
+
+      try {
+        setLoadingShowtimes(true);
+        setShowtimeError(null);
+        setShowtimes(await getShowtimes(movie.id));
+      } catch {
+        setShowtimeError("Unable to load showtimes for this movie.");
+      } finally {
+        setLoadingShowtimes(false);
+      }
+    }
+
+    void loadShowtimes();
+  }, [movie.id, movie.status]);
+
+  const formattedStatus = movie.status
     .toLowerCase()
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
-  const selectShowtime = (showtime: string) => {
-    if (onSelectShowtime) {
-      onSelectShowtime(showtime);
-      return;
-    }
-
-    window.alert(`Selected showtime: ${showtime}`);
-  };
+  const trailerUrl = movie.trailerUrl;
+  const isYoutube =
+    trailerUrl?.includes("youtube.com") || trailerUrl?.includes("youtu.be");
 
   return (
-    <div
-      style={{
-        maxWidth: 900,
-        margin: "24px auto",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
+    <div className="movie-details">
+      <img
+        src={movie.posterUrl || "/placeholder-poster.svg"}
+        alt={`${movie.title} poster`}
+        onError={(event) => {
+          event.currentTarget.onerror = null;
+          event.currentTarget.src = "/placeholder-poster.svg";
         }}
-      >
-        <img
-          src={posterUrl || "/placeholder-poster.svg"}
-          alt={`${title} poster`}
-          onError={(event) => {
-            event.currentTarget.onerror = null;
-            event.currentTarget.src = "/placeholder-poster.svg";
-          }}
-          style={{
-            width: 260,
-            height: 380,
-            objectFit: "cover",
-            borderRadius: 6,
-            margin: "0 auto",
-          }}
-        />
+        className="movie-details-poster"
+      />
 
-        <div
-          style={{
-            flex: 1,
-            textAlign: "left",
-          }}
-        >
-          <h2 style={{ margin: "8px 0" }}>{title}</h2>
+      <div>
+        <h2>{movie.title}</h2>
+        <p><strong>Genre:</strong> {movie.category}</p>
+        <p><strong>Status:</strong> {formattedStatus}</p>
+        {movie.mpaaRating && <p><strong>Rating:</strong> {movie.mpaaRating}</p>}
 
-          <p style={{ margin: "0 0 8px" }}>
-            <strong>Genre:</strong> {category}
-          </p>
+        <h3>Description</h3>
+        <p>{movie.synopsis || "No description is currently available."}</p>
 
-          <p style={{ margin: "0 0 8px" }}>
-            <strong>Status:</strong> {formattedStatus}
-          </p>
-
-          {mpaaRating && (
-            <p style={{ margin: "0 0 12px" }}>
-              <strong>Rating:</strong> {mpaaRating}
-            </p>
-          )}
-
-          <h3
-            style={{
-              margin: "16px 0 8px",
-              fontSize: 16,
-            }}
-          >
-            Description
-          </h3>
-
-          <p style={{ marginTop: 0 }}>
-            {synopsis || "No description is currently available."}
-          </p>
-
-          {status === "CURRENTLY_PLAYING" && (
-            <>
-              <h3
-                style={{
-                  marginTop: 12,
-                  marginBottom: 8,
-                  fontSize: 16,
-                }}
-              >
-                Showtimes
-              </h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-              >
-                {showtimes.map((showtime) => (
-                  <button
-                    key={showtime}
-                    type="button"
-                    onClick={() => selectShowtime(showtime)}
-                  >
-                    {showtime}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          <div style={{ marginTop: 20 }}>
-            <h3
-              style={{
-                marginBottom: 8,
-                fontSize: 16,
-              }}
-            >
-              Trailer
-            </h3>
-
-            {trailerUrl ? (
-              <div
-                style={{
-                  position: "relative",
-                  paddingBottom: "56.25%",
-                  height: 0,
-                  overflow: "hidden",
-                  borderRadius: 8,
-                }}
-              >
-                {isYoutubeUrl(trailerUrl) ? (
-                  <iframe
-                    src={toYoutubeEmbed(trailerUrl)}
-                    title={`${title} trailer`}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: "100%",
-                      border: 0,
-                    }}
-                  />
-                ) : isVideoFile(trailerUrl) ? (
-                  <video
-                    src={trailerUrl}
-                    controls
-                    title={`${title} trailer`}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: "100%",
-                    }}
-                  />
-                ) : (
-                  <iframe
-                    src={trailerUrl}
-                    title={`${title} trailer`}
-                    allowFullScreen
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: "100%",
-                      border: 0,
-                    }}
-                  />
-                )}
-              </div>
-            ) : (
-              <p>No trailer is currently available.</p>
+        {movie.status === "CURRENTLY_PLAYING" && (
+          <section>
+            <h3>Available Showtimes</h3>
+            {loadingShowtimes && <p>Loading showtimes...</p>}
+            {showtimeError && <p role="alert">{showtimeError}</p>}
+            {!loadingShowtimes && !showtimeError && showtimes.length === 0 && (
+              <p>No upcoming showtimes are currently scheduled.</p>
             )}
-          </div>
-        </div>
+            <div className="showtime-list">
+              {showtimes.map((showtime) => (
+                <button
+                  key={showtime.id}
+                  type="button"
+                  className="showtime-option"
+                  onClick={() => onSelectShowtime?.(showtime)}
+                >
+                  <span>{formatDateTime(showtime.startsAt)}</span>
+                  <small>{showtime.showroomName}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="trailer-section">
+          <h3>Trailer</h3>
+          {trailerUrl ? (
+            <div className="trailer-frame">
+              {isYoutube ? (
+                <iframe
+                  src={toYoutubeEmbed(trailerUrl)}
+                  title={`${movie.title} trailer`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : trailerUrl.toLowerCase().endsWith(".mp4") ? (
+                <video src={trailerUrl} controls title={`${movie.title} trailer`} />
+              ) : (
+                <iframe src={trailerUrl} title={`${movie.title} trailer`} allowFullScreen />
+              )}
+            </div>
+          ) : (
+            <p>No trailer is currently available.</p>
+          )}
+        </section>
       </div>
     </div>
   );
-};
-
-export default MovieDetails;
+}
