@@ -83,7 +83,11 @@ function App() {
     async function loadUser() {
       try {
         await initializeCsrf();
-        setAuthUser(await getCurrentUser());
+        const currentUser = await getCurrentUser();
+        setAuthUser(currentUser);
+        if (currentUser) {
+          setCheckoutEmail(currentUser.email);
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -107,10 +111,6 @@ function App() {
     }
     void loadFavorites();
   }, [authUser]);
-
-  useEffect(() => {
-    if (authUser && !checkoutEmail) setCheckoutEmail(authUser.email);
-  }, [authUser, checkoutEmail]);
 
   const totalTickets = adultTickets + childTickets + seniorTickets;
   const selectedSeatObjects = useMemo(
@@ -333,7 +333,7 @@ function App() {
 
         <section className="booking-heading">
           <h2>{selectedMovie.title}</h2>
-          <p>{formatDateTime(selectedShowtime.startsAt)} Â· {selectedShowtime.showroomName}</p>
+          <p>{formatDateTime(selectedShowtime.startsAt)} | {selectedShowtime.showroomName}</p>
         </section>
 
         {bookingError && <p className="form-error" role="alert">{bookingError}</p>}
@@ -343,15 +343,15 @@ function App() {
             <h3>Select Tickets</h3>
             <div className="ticket-grid">
               <label>
-                Adult â ${Number(selectedShowtime.adultPrice).toFixed(2)}
+                Adult - ${Number(selectedShowtime.adultPrice).toFixed(2)}
                 <input type="number" min="0" value={adultTickets} onChange={(event) => setAdultTickets(Math.max(0, Number(event.target.value)))} />
               </label>
               <label>
-                Child â ${Number(selectedShowtime.childPrice).toFixed(2)}
+                Child - ${Number(selectedShowtime.childPrice).toFixed(2)}
                 <input type="number" min="0" value={childTickets} onChange={(event) => setChildTickets(Math.max(0, Number(event.target.value)))} />
               </label>
               <label>
-                Senior â ${Number(selectedShowtime.seniorPrice).toFixed(2)}
+                Senior - ${Number(selectedShowtime.seniorPrice).toFixed(2)}
                 <input type="number" min="0" value={seniorTickets} onChange={(event) => setSeniorTickets(Math.max(0, Number(event.target.value)))} />
               </label>
             </div>
@@ -385,7 +385,7 @@ function App() {
                     className={`seat ${statusClass} ${seat.accessible ? "accessible" : ""}`}
                     disabled={seat.status === "BOOKED"}
                     aria-label={`${seat.label}, ${seat.status === "BOOKED" ? "booked" : selected ? "selected" : "available"}${seat.accessible ? ", accessible" : ""}`}
-                    title={`${seat.label}${seat.accessible ? " â Accessible" : ""}`}
+                    title={`${seat.label}${seat.accessible ? " - Accessible" : ""}`}
                     onClick={() => toggleSeat(seat)}
                   >
                     {seat.label}
@@ -409,9 +409,9 @@ function App() {
               <div><dt>Showtime</dt><dd>{formatDateTime(selectedShowtime.startsAt)}</dd></div>
               <div><dt>Showroom</dt><dd>{selectedShowtime.showroomName}</dd></div>
               <div><dt>Seats</dt><dd>{selectedSeatObjects.map((seat) => seat.label).join(", ")}</dd></div>
-              <div><dt>Adult tickets</dt><dd>{adultTickets} Ã ${Number(selectedShowtime.adultPrice).toFixed(2)}</dd></div>
-              <div><dt>Child tickets</dt><dd>{childTickets} Ã ${Number(selectedShowtime.childPrice).toFixed(2)}</dd></div>
-              <div><dt>Senior tickets</dt><dd>{seniorTickets} Ã ${Number(selectedShowtime.seniorPrice).toFixed(2)}</dd></div>
+              <div><dt>Adult tickets</dt><dd>{adultTickets} x ${Number(selectedShowtime.adultPrice).toFixed(2)}</dd></div>
+              <div><dt>Child tickets</dt><dd>{childTickets} x ${Number(selectedShowtime.childPrice).toFixed(2)}</dd></div>
+              <div><dt>Senior tickets</dt><dd>{seniorTickets} x ${Number(selectedShowtime.seniorPrice).toFixed(2)}</dd></div>
               <div><dt>Total before tax</dt><dd><strong>${subtotal.toFixed(2)}</strong></dd></div>
             </dl>
             <label className="checkout-email">
@@ -443,7 +443,7 @@ function App() {
             <p className="payment-total"><strong>Amount due before tax: ${subtotal.toFixed(2)}</strong></p>
             <fieldset>
               <legend>Payment Information</legend>
-              <label>Card number<input type="text" placeholder="â¢â¢â¢â¢ â¢â¢â¢â¢ â¢â¢â¢â¢ â¢â¢â¢â¢" disabled /></label>
+              <label>Card number<input type="text" placeholder="**** **** **** ****" disabled /></label>
               <label>Expiration<input type="text" placeholder="MM/YY" disabled /></label>
               <label>Security code<input type="text" placeholder="CVV" disabled /></label>
             </fieldset>
@@ -497,39 +497,51 @@ function App() {
   );
 
   return (
-    <main>
-      <h1>Cinema E-Booking</h1>
-      <div className="account-actions">
-        <button type="button" onClick={() => (authUser ? setShowProfile(true) : setShowLogin(true))}>
-          {authUser ? "My Profile" : "Sign In"}
-        </button>
-        {authUser ? (
-          <>
-            <span>Welcome, {authUser.firstName}</span>
-            <button type="button" onClick={() => void signOut()}>Logout</button>
-          </>
-        ) : (
-          <button type="button" onClick={() => setShowRegistration(true)}>Register</button>
-        )}
+    <main className="customer-portal">
+      <header className="admin-topbar">
+        <a className="admin-brand" href="/" aria-label="Cinema E-Booking home">
+          <span className="admin-brand-mark" aria-hidden="true">C</span>
+          <span>Cinema E-Booking</span>
+        </a>
+
+        <div className="admin-account">
+          <button type="button" onClick={() => (authUser ? setShowProfile(true) : setShowLogin(true))}>
+            {authUser ? "My Profile" : "Sign In"}
+          </button>
+          {authUser ? (
+            <button className="button-secondary" type="button" onClick={() => void signOut()}>
+              Logout
+            </button>
+          ) : (
+            <button className="button-secondary" type="button" onClick={() => setShowRegistration(true)}>
+              Register
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="customer-portal-content">
+        <h1>Cinema E-Booking</h1>
+        {authUser && <p className="customer-welcome">Welcome, {authUser.firstName}</p>}
+
+        <section className="movie-filters">
+          <input className="search-box" type="text" placeholder="Search movies by title" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+          <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
+            <option value="">All Genres</option>
+            {["Action", "Adventure", "Animation", "Comedy", "Fantasy", "Historical Drama", "Horror", "Science Fiction"].map((genre) => (
+              <option key={genre} value={genre}>{genre}</option>
+            ))}
+          </select>
+        </section>
+
+        {loading && <p>Loading movies...</p>}
+        {error && <p role="alert">{error}</p>}
+        {favoriteError && <p role="alert">{favoriteError}</p>}
+        {!loading && !error && movies.length === 0 && <p>No movies match your search or filter.</p>}
+
+        {currentlyRunningMovies.length > 0 && <section><h2>Currently Running</h2>{currentlyRunningMovies.map(renderMovie)}</section>}
+        {comingSoonMovies.length > 0 && <section><h2>Coming Soon</h2>{comingSoonMovies.map(renderMovie)}</section>}
       </div>
-
-      <section className="movie-filters">
-        <input className="search-box" type="text" placeholder="Search movies by title" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
-        <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
-          <option value="">All Genres</option>
-          {["Action", "Adventure", "Animation", "Comedy", "Fantasy", "Historical Drama", "Horror", "Science Fiction"].map((genre) => (
-            <option key={genre} value={genre}>{genre}</option>
-          ))}
-        </select>
-      </section>
-
-      {loading && <p>Loading movies...</p>}
-      {error && <p role="alert">{error}</p>}
-      {favoriteError && <p role="alert">{favoriteError}</p>}
-      {!loading && !error && movies.length === 0 && <p>No movies match your search or filter.</p>}
-
-      {currentlyRunningMovies.length > 0 && <section><h2>Currently Running</h2>{currentlyRunningMovies.map(renderMovie)}</section>}
-      {comingSoonMovies.length > 0 && <section><h2>Coming Soon</h2>{comingSoonMovies.map(renderMovie)}</section>}
     </main>
   );
 }

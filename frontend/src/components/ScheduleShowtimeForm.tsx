@@ -30,6 +30,9 @@ export default function ScheduleShowtimeForm({
   const [showrooms, setShowrooms] = useState<Showroom[]>([]);
   const [showtime, setShowtime] =
     useState<CreateShowtimeInput>(initialShowtime);
+  const [showDate, setShowDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -77,14 +80,27 @@ export default function ScheduleShowtimeForm({
     setError(null);
     setSuccess(null);
 
-    if (new Date(showtime.endsAt) <= new Date(showtime.startsAt)) {
+    const startsAt = `${showDate}T${startTime}`;
+    const endsAt = `${showDate}T${endTime}`;
+
+    if (!showDate || !startTime || !endTime) {
+      setError("Select a date, starting time, and ending time.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (new Date(endsAt) <= new Date(startsAt)) {
       setError("The ending time must be later than the starting time.");
       setSubmitting(false);
       return;
     }
 
     try {
-      const savedShowtime = await createShowtime(showtime);
+      const savedShowtime = await createShowtime({
+        ...showtime,
+        startsAt,
+        endsAt,
+      });
 
       setSuccess(
         `${savedShowtime.movieTitle} was scheduled in ` +
@@ -92,6 +108,9 @@ export default function ScheduleShowtimeForm({
       );
 
       setShowtime(initialShowtime);
+      setShowDate("");
+      setStartTime("");
+      setEndTime("");
     } catch (requestError) {
       if (axios.isAxiosError(requestError)) {
         if (requestError.response?.status === 403) {
@@ -183,27 +202,42 @@ export default function ScheduleShowtimeForm({
               ))}
             </select>
 
-            <label htmlFor="showtime-start">Starting time *</label>
-            <input
-              id="showtime-start"
-              type="datetime-local"
-              value={showtime.startsAt}
-              required
-              onChange={(event) =>
-                update("startsAt", event.target.value)
-              }
-            />
+            <fieldset className="schedule-time-fields">
+              <legend>Date and time</legend>
 
-            <label htmlFor="showtime-end">Ending time *</label>
-            <input
-              id="showtime-end"
-              type="datetime-local"
-              value={showtime.endsAt}
-              required
-              onChange={(event) =>
-                update("endsAt", event.target.value)
-              }
-            />
+              <label htmlFor="showtime-date">Show date *</label>
+              <input
+                id="showtime-date"
+                type="date"
+                value={showDate}
+                required
+                onChange={(event) => setShowDate(event.target.value)}
+              />
+
+              <div className="schedule-time-grid">
+                <div>
+                  <label htmlFor="showtime-start">Starting time *</label>
+                  <input
+                    id="showtime-start"
+                    type="time"
+                    value={startTime}
+                    required
+                    onChange={(event) => setStartTime(event.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="showtime-end">Ending time *</label>
+                  <input
+                    id="showtime-end"
+                    type="time"
+                    value={endTime}
+                    required
+                    onChange={(event) => setEndTime(event.target.value)}
+                  />
+                </div>
+              </div>
+            </fieldset>
 
             <label htmlFor="adult-price">Adult ticket price *</label>
             <input
