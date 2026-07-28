@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cinema.ebooking.dto.CreateShowtimeRequest;
 import com.cinema.ebooking.dto.ShowtimeResponse;
@@ -91,7 +93,8 @@ public class ShowtimeService {
                         );
 
         if (conflict) {
-            throw new IllegalArgumentException(
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
                     "This showroom already has a movie scheduled during that time."
             );
         }

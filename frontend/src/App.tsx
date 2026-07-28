@@ -3,7 +3,8 @@ import { apiClient } from "./api/client";
 import { addFavorite, getFavorites, removeFavorite } from "./api/favorites";
 import { getSeatMap } from "./api/showtimes";
 import type { Seat, Showtime } from "./api/showtimes";
-import type { Movie } from "./types/Movie";
+import { checkoutBooking, reserveSeats } from "./api/bookings";
+import { MOVIE_CATEGORIES, type Movie } from "./types/Movie";
 import MovieDetails from "./components/MovieDetails";
 import FavoriteButton from "./components/FavoriteButton";
 import ProfilePage from "./components/ProfilePage";
@@ -12,7 +13,12 @@ import EmailVerificationPage from "./components/EmailVerificationPage";
 import LoginPage from "./components/LoginPage";
 import PasswordResetPage from "./components/PasswordResetPage";
 import AdminHome from "./components/AdminHome";
-import { getCurrentUser, initializeCsrf, logout } from "./api/auth";
+import {
+  getApiErrorMessage,
+  getCurrentUser,
+  initializeCsrf,
+  logout,
+} from "./api/auth";
 import type { AuthUser } from "./api/auth";
 import "./App.css";
 
@@ -47,6 +53,7 @@ function App() {
   const [seniorTickets, setSeniorTickets] = useState(0);
   const [checkoutEmail, setCheckoutEmail] = useState("");
   const [resumeCheckoutAfterLogin, setResumeCheckoutAfterLogin] = useState(false);
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   const [showProfile, setShowProfile] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
@@ -134,6 +141,7 @@ function App() {
     setSeniorTickets(0);
     setBookingError(null);
     setResumeCheckoutAfterLogin(false);
+    setBookingSubmitting(false);
   };
 
   const closeMovie = () => {
@@ -181,17 +189,69 @@ function App() {
     });
   };
 
-  const goToSummary = () => {
+  const goToSummary = async () => {
     if (selectedSeats.length !== totalTickets) {
       setBookingError(`Select exactly ${totalTickets} seat(s) before continuing.`);
       return;
     }
+
+    if (!selectedShowtime) return;
+
+    setBookingSubmitting(true);
     setBookingError(null);
-    setBookingStep("summary");
+    try {
+      await reserveSeats({
+        showtimeId: selectedShowtime.id,
+        seatIds: selectedSeats,
+        adultTickets,
+        childTickets,
+        seniorTickets,
+      });
+      setBookingStep("summary");
+    } catch (requestError) {
+      setBookingError(getApiErrorMessage(
+        requestError,
+        "Unable to reserve those seats. Refresh the seat map and try again.",
+      ));
+      try {
+        const refreshedMap = await getSeatMap(selectedShowtime.id);
+        setSeatMap(refreshedMap.seats);
+        const availableIds = new Set(
+          refreshedMap.seats
+            .filter((seat) => seat.status === "AVAILABLE")
+            .map((seat) => seat.id),
+        );
+        setSelectedSeats((current) =>
+          current.filter((seatId) => availableIds.has(seatId))
+        );
+      } catch {
+        // Preserve the reservation error when the refresh also fails.
+      }
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
+
+  const finishCheckout = async (email: string) => {
+    setBookingSubmitting(true);
+    setBookingError(null);
+    try {
+      await checkoutBooking(email);
+      setBookingStep("payment");
+    } catch (requestError) {
+      setBookingError(getApiErrorMessage(
+        requestError,
+        "Unable to continue to payment. Select your seats again.",
+      ));
+      setBookingStep("summary");
+    } finally {
+      setBookingSubmitting(false);
+    }
   };
 
   const proceedToPayment = () => {
-    if (!checkoutEmail.trim() || !checkoutEmail.includes("@")) {
+    const email = checkoutEmail.trim();
+    if (!email || !email.includes("@")) {
       setBookingError("Enter a valid confirmation email address.");
       return;
     }
@@ -200,8 +260,7 @@ function App() {
       setShowLogin(true);
       return;
     }
-    setBookingError(null);
-    setBookingStep("payment");
+    void finishCheckout(email);
   };
 
   const toggleFavorite = async (movieId: number) => {
@@ -286,11 +345,12 @@ function App() {
       <LoginPage
         onLogin={(user) => {
           setAuthUser(user);
-          setCheckoutEmail(user.email);
+          const email = checkoutEmail.trim() || user.email;
+          setCheckoutEmail(email);
           setShowLogin(false);
           if (resumeCheckoutAfterLogin) {
             setResumeCheckoutAfterLogin(false);
-            setBookingStep("payment");
+            void finishCheckout(email);
           }
         }}
         onCancel={() => {
@@ -396,7 +456,13 @@ function App() {
             <p><strong>Selected:</strong> {selectedSeatObjects.map((seat) => seat.label).join(", ") || "None"}</p>
             <div>
               <button type="button" onClick={() => setBookingStep("tickets")}>Back</button>
-              <button type="button" onClick={goToSummary}>Proceed to Checkout</button>
+              <button
+                type="button"
+                disabled={bookingSubmitting}
+                onClick={() => void goToSummary()}
+              >
+                {bookingSubmitting ? "Reserving Seats..." : "Proceed to Checkout"}
+              </button>
             </div>
           </section>
         )}
@@ -427,7 +493,13 @@ function App() {
             {!authUser && <p className="form-guidance">You may choose seats as a guest. You will be asked to sign in before payment.</p>}
             <div>
               <button type="button" onClick={() => setBookingStep("seats")}>Back</button>
-              <button type="button" onClick={proceedToPayment}>Continue to Payment</button>
+              <button
+                type="button"
+                disabled={bookingSubmitting}
+                onClick={proceedToPayment}
+              >
+                {bookingSubmitting ? "Preparing Payment..." : "Continue to Payment"}
+              </button>
             </div>
           </section>
         )}
@@ -528,7 +600,7 @@ function App() {
           <input className="search-box" type="text" placeholder="Search movies by title" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
           <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
             <option value="">All Genres</option>
-            {["Action", "Adventure", "Animation", "Comedy", "Fantasy", "Historical Drama", "Horror", "Science Fiction"].map((genre) => (
+            {MOVIE_CATEGORIES.map((genre) => (
               <option key={genre} value={genre}>{genre}</option>
             ))}
           </select>

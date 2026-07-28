@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import axios from "axios";
 import { createMovie, type CreateMovieInput } from "../api/movies";
-import type { MovieStatus } from "../types/Movie";
+import { MOVIE_CATEGORIES, type MovieStatus } from "../types/Movie";
 
 interface AddMovieFormProps {
   onBack: () => void;
@@ -98,13 +98,19 @@ export default function AddMovieForm({ onBack }: AddMovieFormProps) {
           />
 
           <label htmlFor="movie-category">Category *</label>
-          <input
+          <select
             id="movie-category"
             value={movie.category}
-            maxLength={100}
             required
             onChange={(event) => update("category", event.target.value)}
-          />
+          >
+            <option value="">Select a category</option>
+            {MOVIE_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
 
           <label htmlFor="movie-synopsis">Synopsis *</label>
           <textarea

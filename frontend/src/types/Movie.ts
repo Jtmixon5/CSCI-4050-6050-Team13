@@ -3,6 +3,17 @@ export type MovieStatus =
   | "COMING_SOON"
   | "INACTIVE";
 
+export const MOVIE_CATEGORIES = [
+  "Action",
+  "Adventure",
+  "Animation",
+  "Comedy",
+  "Fantasy",
+  "Historical Drama",
+  "Horror",
+  "Science Fiction",
+] as const;
+
 export interface Movie {
   id: number;
   title: string;

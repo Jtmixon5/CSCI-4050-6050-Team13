@@ -39,7 +39,9 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         || (path.startsWith("/api/showrooms")
             && HttpMethod.GET.matches(method))
         || (path.startsWith("/api/showtimes")
-            && HttpMethod.GET.matches(method));
+            && HttpMethod.GET.matches(method))
+        || (path.equals("/api/bookings/reserve")
+            && HttpMethod.POST.matches(method));
 
         if (publicRequest) {
             return true;
