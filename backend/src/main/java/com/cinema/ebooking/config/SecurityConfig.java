@@ -27,7 +27,8 @@ public class SecurityConfig {
                     "/api/auth/change-password",
                     "/api/profile",
                     "/api/favorites/**",
-                    "/api/movies/**"
+                    "/api/movies/**",
+                    "/api/admin/showtimes"
                 )
             )
             .authorizeHttpRequests(auth -> auth
