@@ -1,6 +1,8 @@
 package com.cinema.ebooking.service;
 
 import com.cinema.ebooking.dto.BookingResponse;
+import com.cinema.ebooking.dto.ConfirmBookingRequest;
+import com.cinema.ebooking.dto.OrderHistoryResponse;
 import com.cinema.ebooking.dto.ReserveSeatsRequest;
 import com.cinema.ebooking.entity.Booking;
 import com.cinema.ebooking.entity.BookingStatus;
@@ -16,6 +18,9 @@ import com.cinema.ebooking.repository.BookingTicketRepository;
 import com.cinema.ebooking.repository.SeatRepository;
 import com.cinema.ebooking.repository.SeatReservationRepository;
 import com.cinema.ebooking.repository.ShowtimeRepository;
+import com.cinema.ebooking.payment.PaymentGateway;
+import com.cinema.ebooking.payment.PaymentRejectedException;
+import com.cinema.ebooking.pattern.ConfirmationNumberGenerator;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -34,25 +40,35 @@ public class BookingService {
 
     public static final String BOOKING_SESSION_TOKEN = "bookingSessionToken";
     private static final int HOLD_MINUTES = 5;
+    private static final BigDecimal TAX_RATE = new BigDecimal("0.07");
 
     private final BookingRepository bookingRepository;
     private final BookingTicketRepository ticketRepository;
     private final SeatReservationRepository reservationRepository;
     private final ShowtimeRepository showtimeRepository;
     private final SeatRepository seatRepository;
+    private final PaymentGateway paymentGateway;
+    private final RegistrationEmailService emailService;
+    private final CheckoutPaymentCardService checkoutCardService;
 
     public BookingService(
         BookingRepository bookingRepository,
         BookingTicketRepository ticketRepository,
         SeatReservationRepository reservationRepository,
         ShowtimeRepository showtimeRepository,
-        SeatRepository seatRepository
+        SeatRepository seatRepository,
+        PaymentGateway paymentGateway,
+        RegistrationEmailService emailService,
+        CheckoutPaymentCardService checkoutCardService
     ) {
         this.bookingRepository = bookingRepository;
         this.ticketRepository = ticketRepository;
         this.reservationRepository = reservationRepository;
         this.showtimeRepository = showtimeRepository;
         this.seatRepository = seatRepository;
+        this.paymentGateway = paymentGateway;
+        this.emailService = emailService;
+        this.checkoutCardService = checkoutCardService;
     }
 
     @Transactional
@@ -215,6 +231,134 @@ public class BookingService {
             .map(reservation -> reservation.getSeat().getId())
             .toList();
         return BookingResponse.from(booking, seatIds);
+    }
+
+    @Transactional
+    public BookingResponse confirm(
+        String sessionToken,
+        User user,
+        ConfirmBookingRequest request
+    ) {
+        Booking booking = bookingRepository.findBySessionToken(sessionToken)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "No booking was found for this session."
+            ));
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            return responseWithSeats(booking);
+        }
+        if (booking.getStatus() != BookingStatus.PAYMENT_PENDING
+            || booking.getUser() == null
+            || !booking.getUser().getId().equals(user.getId())) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "This order is not ready for payment."
+            );
+        }
+        List<SeatReservation> reservations = reservations(booking);
+        if (reservations.isEmpty()
+            || (booking.getExpiresAt() != null
+                && booking.getExpiresAt().isBefore(LocalDateTime.now()))) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "The seat reservation has expired. Select seats again."
+            );
+        }
+
+        BigDecimal tax = booking.getSubtotal()
+            .multiply(TAX_RATE)
+            .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = booking.getSubtotal().add(tax);
+        CheckoutPaymentCardService.CheckoutCard checkoutCard =
+            checkoutCardService.resolve(user, request);
+        try {
+            if (!paymentGateway.authorize(
+                checkoutCard.number(),
+                checkoutCard.expirationMonth(),
+                checkoutCard.expirationYear(),
+                checkoutCard.securityCode(),
+                total
+            ).approved()) {
+                throw new PaymentRejectedException("Payment was declined.");
+            }
+        } catch (PaymentRejectedException exception) {
+            throw new ResponseStatusException(
+                HttpStatus.PAYMENT_REQUIRED,
+                exception.getMessage(),
+                exception
+            );
+        }
+
+        String digits = checkoutCard.number().replaceAll("\\D", "");
+        booking.confirm(
+            tax,
+            total,
+            ConfirmationNumberGenerator.getInstance().next(),
+            digits.substring(digits.length() - 4)
+        );
+        bookingRepository.saveAndFlush(booking);
+        OrderHistoryResponse order = toOrderHistory(booking, reservations);
+        emailService.sendOrderConfirmation(booking.getContactEmail(), order);
+        return BookingResponse.from(
+            booking,
+            reservations.stream().map(item -> item.getSeat().getId()).toList()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderHistoryResponse> history(User user) {
+        return bookingRepository
+            .findAllByUser_IdAndStatusOrderByConfirmedAtDesc(
+                user.getId(),
+                BookingStatus.CONFIRMED
+            )
+            .stream()
+            .map(booking -> toOrderHistory(booking, reservations(booking)))
+            .toList();
+    }
+
+    private BookingResponse responseWithSeats(Booking booking) {
+        List<Long> seats = reservations(booking).stream()
+            .map(item -> item.getSeat().getId())
+            .toList();
+        return BookingResponse.from(booking, seats);
+    }
+
+    private List<SeatReservation> reservations(Booking booking) {
+        return reservationRepository
+            .findByBooking_IdOrderBySeat_RowLabelAscSeat_SeatNumberAsc(
+                booking.getId()
+            );
+    }
+
+    private OrderHistoryResponse toOrderHistory(
+        Booking booking,
+        List<SeatReservation> reservations
+    ) {
+        List<BookingTicket> tickets =
+            ticketRepository.findByBooking_Id(booking.getId());
+        return new OrderHistoryResponse(
+            booking.getId(),
+            booking.getConfirmationNumber(),
+            booking.getShowtime().getMovie().getTitle(),
+            booking.getShowtime().getStartsAt(),
+            booking.getShowtime().getShowroom().getName(),
+            reservations.stream().map(item -> item.getSeat().getLabel()).toList(),
+            countTickets(tickets, TicketType.ADULT),
+            countTickets(tickets, TicketType.CHILD),
+            countTickets(tickets, TicketType.SENIOR),
+            booking.getSubtotal(),
+            booking.getTaxAmount(),
+            booking.getTotalAmount(),
+            booking.getCardLastFour(),
+            booking.getConfirmedAt()
+        );
+    }
+
+    private long countTickets(List<BookingTicket> tickets, TicketType type) {
+        return tickets.stream()
+            .filter(ticket -> ticket.getTicketType() == type)
+            .count();
     }
 
     private List<TicketType> ticketTypes(ReserveSeatsRequest request) {

@@ -11,6 +11,11 @@ public record BookingResponse(
     Long showtimeId,
     String status,
     BigDecimal subtotal,
+    BigDecimal taxAmount,
+    BigDecimal totalAmount,
+    String confirmationNumber,
+    String cardLastFour,
+    LocalDateTime confirmedAt,
     String contactEmail,
     LocalDateTime expiresAt,
     List<Long> seatIds
@@ -21,6 +26,11 @@ public record BookingResponse(
             booking.getShowtime().getId(),
             booking.getStatus().name(),
             booking.getSubtotal(),
+            booking.getTaxAmount(),
+            booking.getTotalAmount(),
+            booking.getConfirmationNumber(),
+            booking.getCardLastFour(),
+            booking.getConfirmedAt(),
             booking.getContactEmail(),
             booking.getExpiresAt(),
             seatIds

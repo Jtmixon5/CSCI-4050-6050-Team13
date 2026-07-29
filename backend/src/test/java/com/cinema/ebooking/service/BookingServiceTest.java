@@ -15,6 +15,7 @@ import com.cinema.ebooking.repository.BookingTicketRepository;
 import com.cinema.ebooking.repository.SeatRepository;
 import com.cinema.ebooking.repository.SeatReservationRepository;
 import com.cinema.ebooking.repository.ShowtimeRepository;
+import com.cinema.ebooking.payment.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -54,7 +55,10 @@ class BookingServiceTest {
             ticketRepository,
             reservationRepository,
             showtimeRepository,
-            seatRepository
+            seatRepository,
+            mock(PaymentGateway.class),
+            mock(RegistrationEmailService.class),
+            mock(CheckoutPaymentCardService.class)
         );
     }
 

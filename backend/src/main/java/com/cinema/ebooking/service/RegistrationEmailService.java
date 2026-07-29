@@ -1,5 +1,6 @@
 package com.cinema.ebooking.service;
 
+import com.cinema.ebooking.dto.OrderHistoryResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -65,6 +66,24 @@ public class RegistrationEmailService {
             "Your Cinema E-Booking profile was updated",
             "Your personal profile information was changed. "
                 + "If you did not make this change, contact support immediately."
+        );
+    }
+
+    public void sendOrderConfirmation(
+        String recipient,
+        OrderHistoryResponse order
+    ) {
+        send(
+            recipient,
+            "Cinema order " + order.confirmationNumber() + " confirmed",
+            "Thank you for your order!\n\n"
+                + "Confirmation: " + order.confirmationNumber() + "\n"
+                + "Movie: " + order.movieTitle() + "\n"
+                + "Showtime: " + order.showtime() + "\n"
+                + "Showroom: " + order.showroom() + "\n"
+                + "Seats: " + String.join(", ", order.seats()) + "\n"
+                + "Total: $" + order.totalAmount() + "\n"
+                + "Payment card ending in " + order.cardLastFour()
         );
     }
 

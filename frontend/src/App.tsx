@@ -3,7 +3,9 @@ import { apiClient } from "./api/client";
 import { addFavorite, getFavorites, removeFavorite } from "./api/favorites";
 import { getSeatMap } from "./api/showtimes";
 import type { Seat, Showtime } from "./api/showtimes";
-import { checkoutBooking, reserveSeats } from "./api/bookings";
+import { checkoutBooking, confirmBooking, reserveSeats } from "./api/bookings";
+import type { Booking } from "./api/bookings";
+import { getProfile, type PaymentCard } from "./api/profile";
 import { MOVIE_CATEGORIES, type Movie } from "./types/Movie";
 import MovieDetails from "./components/MovieDetails";
 import FavoriteButton from "./components/FavoriteButton";
@@ -13,6 +15,7 @@ import EmailVerificationPage from "./components/EmailVerificationPage";
 import LoginPage from "./components/LoginPage";
 import PasswordResetPage from "./components/PasswordResetPage";
 import AdminHome from "./components/AdminHome";
+import OrderHistoryPage from "./components/OrderHistoryPage";
 import {
   getApiErrorMessage,
   getCurrentUser,
@@ -22,7 +25,7 @@ import {
 import type { AuthUser } from "./api/auth";
 import "./App.css";
 
-type BookingStep = "tickets" | "seats" | "summary" | "payment";
+type BookingStep = "tickets" | "seats" | "summary" | "payment" | "confirmation";
 
 const formatDateTime = (value: string): string =>
   new Intl.DateTimeFormat("en-US", {
@@ -54,8 +57,16 @@ function App() {
   const [checkoutEmail, setCheckoutEmail] = useState("");
   const [resumeCheckoutAfterLogin, setResumeCheckoutAfterLogin] = useState(false);
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [cardNumber, setCardNumber] = useState("");
+  const [expirationMonth, setExpirationMonth] = useState("");
+  const [expirationYear, setExpirationYear] = useState("");
+  const [securityCode, setSecurityCode] = useState("");
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+  const [savedCards, setSavedCards] = useState<PaymentCard[]>([]);
+  const [selectedPaymentCard, setSelectedPaymentCard] = useState("new");
 
   const [showProfile, setShowProfile] = useState(false);
+  const [showOrders, setShowOrders] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -119,6 +130,27 @@ function App() {
     void loadFavorites();
   }, [authUser]);
 
+  useEffect(() => {
+    if (!authUser) {
+      setSavedCards([]);
+      setSelectedPaymentCard("new");
+      return;
+    }
+    getProfile()
+      .then((profile) => {
+        setSavedCards(profile.paymentCards);
+        setSelectedPaymentCard(
+          profile.paymentCards[0]?.id
+            ? String(profile.paymentCards[0].id)
+            : "new",
+        );
+      })
+      .catch(() => {
+        setSavedCards([]);
+        setSelectedPaymentCard("new");
+      });
+  }, [authUser]);
+
   const totalTickets = adultTickets + childTickets + seniorTickets;
   const selectedSeatObjects = useMemo(
     () => seatMap.filter((seat) => selectedSeats.includes(seat.id)),
@@ -142,6 +174,12 @@ function App() {
     setBookingError(null);
     setResumeCheckoutAfterLogin(false);
     setBookingSubmitting(false);
+    setCardNumber("");
+    setExpirationMonth("");
+    setExpirationYear("");
+    setSecurityCode("");
+    setConfirmedBooking(null);
+    setSelectedPaymentCard(savedCards[0]?.id ? String(savedCards[0].id) : "new");
   };
 
   const closeMovie = () => {
@@ -263,6 +301,39 @@ function App() {
     void finishCheckout(email);
   };
 
+  const submitPayment = async () => {
+    const digits = cardNumber.replace(/\D/g, "");
+    const usingSavedCard = selectedPaymentCard !== "new";
+    if (!usingSavedCard && !/^\d{13,19}$/.test(digits)) {
+      setBookingError("Enter a valid card number.");
+      return;
+    }
+    if (!/^\d{3,4}$/.test(securityCode)) {
+      setBookingError("Enter the card's 3 or 4 digit security code.");
+      return;
+    }
+    setBookingSubmitting(true);
+    setBookingError(null);
+    try {
+      const booking = await confirmBooking({
+        ...(usingSavedCard
+          ? { savedCardId: Number(selectedPaymentCard) }
+          : {
+              cardNumber: digits,
+              expirationMonth: Number(expirationMonth),
+              expirationYear: Number(expirationYear),
+            }),
+        securityCode,
+      });
+      setConfirmedBooking(booking);
+      setBookingStep("confirmation");
+    } catch (requestError) {
+      setBookingError(getApiErrorMessage(requestError, "Payment could not be completed."));
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
+
   const toggleFavorite = async (movieId: number) => {
     if (!authUser) {
       setFavoriteError("Sign in to save favorite movies.");
@@ -377,6 +448,9 @@ function App() {
       </main>
     );
   }
+  if (showOrders) {
+    return <OrderHistoryPage onBack={() => setShowOrders(false)} />;
+  }
 
   if (selectedMovie && selectedShowtime) {
     return (
@@ -384,7 +458,7 @@ function App() {
         <button type="button" onClick={closeMovie}>Back to Movies</button>
         <h1>Book Tickets</h1>
         <div className="booking-progress" aria-label="Booking progress">
-          {(["tickets", "seats", "summary", "payment"] as BookingStep[]).map((step, index) => (
+          {(["tickets", "seats", "summary", "payment", "confirmation"] as BookingStep[]).map((step, index) => (
             <span key={step} className={bookingStep === step ? "active" : ""}>
               {index + 1}. {step.charAt(0).toUpperCase() + step.slice(1)}
             </span>
@@ -505,21 +579,64 @@ function App() {
         )}
 
         {bookingStep === "payment" && (
-          <section className="booking-card payment-mockup">
+          <section className="booking-card">
             <h3>Payment</h3>
-            <p>This is the required payment-page mockup. Final payment processing and order confirmation will be completed in the final sprint.</p>
             <p><strong>Movie:</strong> {selectedMovie.title}</p>
             <p><strong>Showtime:</strong> {formatDateTime(selectedShowtime.startsAt)}</p>
             <p><strong>Seats:</strong> {selectedSeatObjects.map((seat) => seat.label).join(", ")}</p>
             <p><strong>Confirmation email:</strong> {checkoutEmail}</p>
-            <p className="payment-total"><strong>Amount due before tax: ${subtotal.toFixed(2)}</strong></p>
+            <p><strong>Subtotal:</strong> ${subtotal.toFixed(2)}</p>
+            <p><strong>Tax (7%):</strong> ${(subtotal * 0.07).toFixed(2)}</p>
+            <p className="payment-total"><strong>Total: ${(subtotal * 1.07).toFixed(2)}</strong></p>
             <fieldset>
               <legend>Payment Information</legend>
-              <label>Card number<input type="text" placeholder="**** **** **** ****" disabled /></label>
-              <label>Expiration<input type="text" placeholder="MM/YY" disabled /></label>
-              <label>Security code<input type="text" placeholder="CVV" disabled /></label>
+              {savedCards.length > 0 && (
+                <label>
+                  Payment card
+                  <select
+                    value={selectedPaymentCard}
+                    onChange={(event) => setSelectedPaymentCard(event.target.value)}
+                  >
+                    {savedCards.map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.cardType} ending in {card.lastFour}
+                      </option>
+                    ))}
+                    <option value="new">Use a different card</option>
+                  </select>
+                </label>
+              )}
+              {selectedPaymentCard === "new" && (
+                <>
+                  <label>Card number<input autoComplete="cc-number" inputMode="numeric" value={cardNumber} onChange={(event) => setCardNumber(event.target.value)} placeholder="4242 4242 4242 4242" /></label>
+                  <label>Expiration month<input type="number" min="1" max="12" value={expirationMonth} onChange={(event) => setExpirationMonth(event.target.value)} placeholder="MM" /></label>
+                  <label>Expiration year<input type="number" min={new Date().getFullYear()} value={expirationYear} onChange={(event) => setExpirationYear(event.target.value)} placeholder="YYYY" /></label>
+                </>
+              )}
+              <label>Security code<input autoComplete="cc-csc" inputMode="numeric" value={securityCode} onChange={(event) => setSecurityCode(event.target.value)} placeholder="CVV" /></label>
+              {selectedPaymentCard !== "new" && (
+                <small>For security, enter the CVV for your saved card.</small>
+              )}
             </fieldset>
             <button type="button" onClick={() => setBookingStep("summary")}>Back to Summary</button>
+            <button type="button" disabled={bookingSubmitting} onClick={() => void submitPayment()}>
+              {bookingSubmitting ? "Processing..." : `Pay $${(subtotal * 1.07).toFixed(2)}`}
+            </button>
+          </section>
+        )}
+
+        {bookingStep === "confirmation" && confirmedBooking && (
+          <section className="booking-card order-summary">
+            <h3>Order Confirmed</h3>
+            <p>A confirmation email has been sent to {checkoutEmail}.</p>
+            <p><strong>Confirmation number:</strong> {confirmedBooking.confirmationNumber}</p>
+            <p><strong>Movie:</strong> {selectedMovie.title}</p>
+            <p><strong>Seats:</strong> {selectedSeatObjects.map((seat) => seat.label).join(", ")}</p>
+            <p><strong>Subtotal:</strong> ${Number(confirmedBooking.subtotal).toFixed(2)}</p>
+            <p><strong>Tax:</strong> ${Number(confirmedBooking.taxAmount).toFixed(2)}</p>
+            <p><strong>Total paid:</strong> ${Number(confirmedBooking.totalAmount).toFixed(2)}</p>
+            <button type="button" onClick={closeMovie}>Return to Movies</button>
+            <button type="button" onClick={() => { closeMovie(); setShowOrders(true); }}>View My Orders</button>
           </section>
         )}
       </main>
@@ -580,6 +697,9 @@ function App() {
           <button type="button" onClick={() => (authUser ? setShowProfile(true) : setShowLogin(true))}>
             {authUser ? "My Profile" : "Sign In"}
           </button>
+          {authUser && (
+            <button type="button" onClick={() => setShowOrders(true)}>My Orders</button>
+          )}
           {authUser ? (
             <button className="button-secondary" type="button" onClick={() => void signOut()}>
               Logout

@@ -44,6 +44,21 @@ public class Booking {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 
+    @Column(name = "tax_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal taxAmount = BigDecimal.ZERO;
+
+    @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
+
+    @Column(name = "confirmation_number", unique = true, length = 40)
+    private String confirmationNumber;
+
+    @Column(name = "card_last_four", length = 4)
+    private String cardLastFour;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
@@ -60,6 +75,7 @@ public class Booking {
         this.sessionToken = sessionToken;
         this.status = BookingStatus.DRAFT;
         this.subtotal = subtotal;
+        this.totalAmount = subtotal;
         this.expiresAt = expiresAt;
     }
 
@@ -70,6 +86,8 @@ public class Booking {
     ) {
         this.showtime = showtime;
         this.subtotal = subtotal;
+        this.taxAmount = BigDecimal.ZERO;
+        this.totalAmount = subtotal;
         this.expiresAt = expiresAt;
         this.status = BookingStatus.DRAFT;
     }
@@ -78,6 +96,21 @@ public class Booking {
         this.user = user;
         this.contactEmail = contactEmail;
         this.status = BookingStatus.PAYMENT_PENDING;
+    }
+
+    public void confirm(
+        BigDecimal taxAmount,
+        BigDecimal totalAmount,
+        String confirmationNumber,
+        String cardLastFour
+    ) {
+        this.taxAmount = taxAmount;
+        this.totalAmount = totalAmount;
+        this.confirmationNumber = confirmationNumber;
+        this.cardLastFour = cardLastFour;
+        this.confirmedAt = LocalDateTime.now();
+        this.expiresAt = null;
+        this.status = BookingStatus.CONFIRMED;
     }
 
     public Long getId() {
@@ -111,4 +144,10 @@ public class Booking {
     public LocalDateTime getExpiresAt() {
         return expiresAt;
     }
+
+    public BigDecimal getTaxAmount() { return taxAmount; }
+    public BigDecimal getTotalAmount() { return totalAmount; }
+    public String getConfirmationNumber() { return confirmationNumber; }
+    public String getCardLastFour() { return cardLastFour; }
+    public LocalDateTime getConfirmedAt() { return confirmedAt; }
 }

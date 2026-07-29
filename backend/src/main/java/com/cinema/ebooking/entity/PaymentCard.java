@@ -118,4 +118,16 @@ public class PaymentCard {
     public String getBillingZipCode() {
         return billingZipCode;
     }
+
+    public String getEncryptedCardNumber() {
+        return encryptedCardNumber;
+    }
+
+    public String getEncryptedExpirationMonth() {
+        return encryptedExpirationMonth;
+    }
+
+    public String getEncryptedExpirationYear() {
+        return encryptedExpirationYear;
+    }
 }
